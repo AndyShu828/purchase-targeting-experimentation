@@ -1,0 +1,30 @@
+# Data (never commit; see README for how to rebuild)
+data/
+*.csv
+*.parquet
+*.zip
+
+# Secrets (GCP service-account keys are JSON; keep configs in YAML)
+.env
+*.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Local tooling state
+*.duckdb
+*.duckdb.wal
+mlruns/
+mlartifacts/
+logs/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

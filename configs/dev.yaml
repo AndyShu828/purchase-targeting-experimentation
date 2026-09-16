@@ -1,0 +1,15 @@
+env: dev
+
+# Relative paths are resolved against the repository root.
+paths:
+  raw_dir: data/raw
+  events_dir: data/parquet/events
+  sample_dir: data/parquet/sample_1001_1007
+
+ingest:
+  months: ["2019-Oct", "2019-Nov"]
+  sample_start: "2019-10-01"
+  sample_end: "2019-10-07"
+
+duckdb:
+  temp_directory: data/tmp
