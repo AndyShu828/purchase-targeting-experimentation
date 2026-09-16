@@ -14,11 +14,15 @@ Parquet row count matches exactly (verified per month).
 
 ## Size
 
-| Format | Size | Bytes per row | Ratio |
-| --- | --- | --- | --- |
-| zip (download) | TODO | | |
-| CSV | ~14.7 GB | ~134 | 1x |
-| Parquet (zstd, 61 daily partitions) | 2.01 GB | ~20 | ~7.3x smaller |
+| Format | Bytes | Bytes per row | vs CSV |
+| --- | ---: | ---: | ---: |
+| CSV | 14,675,375,250 | 133.5 | 1x |
+| Download archives (Oct `.csv.gz` + Nov `.csv.zip`) | 4,616,053,647 | 42.0 | 3.2x smaller |
+| Parquet (zstd, 61 daily partitions) | 2,006,394,515 | 18.2 | 7.3x smaller |
+
+Each archive holds a single month's CSV. Parquet is 2.3x smaller than the gzip/zip archives
+and remains directly queryable: generic compressors see one long text stream, while Parquet
+encodes each column separately (dictionary, run-length, delta) before applying zstd.
 
 ## Size by column (Parquet, both months)
 
@@ -36,7 +40,7 @@ Parquet row count matches exactly (verified per month).
 
 ## Observations
 
-- `user_session` (a UUID string) is 42% of the dataset. Its values are almost unique, so dictionary
+- `user_session` (a UUID string) is 42% of the column data. Its values are almost unique, so dictionary
   encoding does not help. A custom integer session ID (see sessionization) would be far cheaper;
   the original column is kept for comparison.
 - `event_type` has a handful of values; dictionary + run-length encoding shrinks it to <0.1 byte/row.
@@ -46,6 +50,17 @@ Parquet row count matches exactly (verified per month).
 
 ## Query speed
 
-| Query | CSV | Parquet |
-| --- | --- | --- |
-| Daily purchases, October | TODO s | TODO s |
+Daily purchase counts for October 2019 (`python scripts/bench_storage.py`),
+DuckDB 1.5.5, Intel Core i5-12600K, best of 3 warm runs (files already in the OS cache),
+repeated in two sessions. Both formats return identical results (31 days).
+
+| Format | Time |
+| --- | ---: |
+| CSV (5.7 GB) | 2.23–2.25 s |
+| Parquet | 0.039–0.047 s |
+| Speed-up | ~50x (48–58x) |
+
+Even with DuckDB's parallel CSV reader, Parquet is over an order of magnitude faster: the query
+reads only 2 of 10 columns (`event_type`, `event_date`), skips the November partitions
+entirely, and parses no text. At tens of milliseconds, run-to-run noise is ~20% of the Parquet
+timing, so the ratio is reported as a range. Cold-cache timings were not measured.
