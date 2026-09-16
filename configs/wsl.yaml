@@ -1,0 +1,16 @@
+env: wsl
+
+# Absolute paths on the WSL ext4 filesystem. Data is kept out of /mnt/c because
+# reading the Windows drive from Linux goes over 9p and is much slower.
+paths:
+  raw_dir: /home/andy/pte-data/raw
+  events_dir: /home/andy/pte-data/parquet/events
+  sample_dir: /home/andy/pte-data/parquet/sample_1001_1007
+
+ingest:
+  months: ["2019-Oct", "2019-Nov"]
+  sample_start: "2019-10-01"
+  sample_end: "2019-10-07"
+
+duckdb:
+  temp_directory: /home/andy/pte-data/tmp

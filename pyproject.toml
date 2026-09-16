@@ -15,6 +15,11 @@ dev = [
     "ruff>=0.6",
     "sqlfluff>=3",
 ]
+# Optional: nothing in src/ imports pyspark yet, so CI does not install it.
+# Spark needs Linux here; on Windows its Hadoop layer misses native libraries.
+spark = [
+    "pyspark>=4.0",
+]
 
 [build-system]
 requires = ["hatchling"]
