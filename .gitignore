@@ -28,3 +28,6 @@ logs/
 Thumbs.db
 .vscode/
 .idea/
+
+# Personal interview notes, not part of the portfolio
+docs/interview/
