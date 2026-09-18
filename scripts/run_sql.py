@@ -8,11 +8,13 @@ will fail here, which is the point of testing locally first.
 Usage:
     python scripts/run_sql.py sql/analysis/data_quality.sql
     python scripts/run_sql.py sql/analysis/funnel.sql --full --limit 20
+    python scripts/run_sql.py -e "SELECT event_type, count(*) AS n FROM events GROUP BY 1"
 """
 
 from __future__ import annotations
 
 import argparse
+import sys
 import time
 from collections.abc import Sequence
 from pathlib import Path
@@ -37,22 +39,40 @@ def format_table(columns: Sequence[str], rows: Sequence[tuple[Any, ...]]) -> str
     return "\n".join(lines)
 
 
-def main(argv: Sequence[str] | None = None) -> None:
+def read_sql(args: argparse.Namespace) -> tuple[str, str]:
+    """Return (label, statement) from either --execute or the .sql file argument."""
+    if args.execute is not None:
+        return "-e", args.execute
+    try:
+        return str(args.sql_file), args.sql_file.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise SystemExit(f"cannot read {args.sql_file}: {exc.strerror}") from exc
+
+
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("sql_file", type=Path)
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("sql_file", nargs="?", type=Path, help="path to a .sql file")
+    source.add_argument("-e", "--execute", metavar="SQL", help="run this statement instead")
     parser.add_argument(
         "--full", action="store_true", help="read all 61 partitions instead of the dev sample"
     )
     parser.add_argument("--limit", type=int, default=50, help="rows to print (default: 50)")
     parser.add_argument("--env", default=None, help="config name under configs/ (default: dev)")
-    args = parser.parse_args(argv)
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    args = build_parser().parse_args(argv)
+    label, text = read_sql(args)
 
     cfg = load_config(args.env)
     paths = cfg["paths"]
     source_dir = resolve(paths["events_dir"] if args.full else paths["sample_dir"])
-    text = args.sql_file.read_text(encoding="utf-8")
+    if not source_dir.is_dir():
+        raise SystemExit(f"no parquet at {source_dir} -- run `python -m pte.ingest.convert` first")
 
     con = duckdb.connect()
     temp_dir = cfg.get("duckdb", {}).get("temp_directory")
@@ -61,7 +81,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         con.execute(f"SET temp_directory = '{resolve(temp_dir).as_posix()}'")
     con.execute(f"CREATE VIEW events AS SELECT * FROM {parquet_source(source_dir)}")
 
-    print(f"{args.sql_file}  events -> {source_dir}")
+    print(f"{label}  events -> {source_dir}")
     start = time.perf_counter()
     result = con.sql(text)
     rows = result.fetchall() if result is not None else []
@@ -75,4 +95,7 @@ def main(argv: Sequence[str] | None = None) -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except duckdb.Error as exc:
+        sys.exit(f"{type(exc).__name__}: {exc}")
