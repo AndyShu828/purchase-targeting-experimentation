@@ -31,7 +31,12 @@
 -- also a coarser grain: 277 labelled ids collapse into 129 codes. So the id is
 -- the analysis key and the code is joined back as a display label that will be
 -- NULL for 414 of the 691 categories. Labels come from their own scan rather
--- than riding through the window pipeline, which keeps the sort narrow.
+-- than riding through the window pipeline, which keeps a display attribute out
+-- of the keys that fix the grain. Grouping the pair layer on category_code as
+-- well would make the pair count depend on every category having exactly one
+-- code -- true of this data today, at most one distinct code per id, but a
+-- property of it rather than a guarantee, and a silent row split if it ever
+-- stops holding.
 --
 -- is_reportable flags a numerator of at least 100. Every category is emitted
 -- anyway: the tail is dominated by categories with a handful of pairs whose
