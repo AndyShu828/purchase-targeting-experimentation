@@ -56,7 +56,17 @@
 --
 -- THREE ARTEFACTS THAT ARE NOT BEHAVIOUR, all visible in the output:
 --   1. bucket_exponent = -1 holds intervals of exactly 0 seconds, 85 of them
---      at event level. LOG of zero raises rather than returning NULL, so the
+--      at event level, and they are not behaviour at all. All 85 pairs share a
+--      user, a second, a product and a price, which makes them the same 85
+--      redundant rows that the nine-column duplicate check in
+--      data_quality_duplicates.sql found among purchases -- 0.0051% of
+--      purchase events, every group exactly a pair, never a triple. They are
+--      machine repeats, so the bucket is an artefact of a known data defect
+--      rather than a customer buying twice in one second, and it is kept
+--      visible for that reason. Dropping the duplicates upstream, once that
+--      cleaning rule is applied, should empty this bucket exactly; that it
+--      does is a free check on the cleaning.
+--      Mechanically, LOG of zero raises rather than returning NULL, so the
 --      argument is passed through NULLIF; CASE would read better but BigQuery
 --      does not promise to leave the unmatched branch unevaluated.
 --   2. bucket_exponent = 10 spans 1024-2048 seconds and the 30-minute cut
