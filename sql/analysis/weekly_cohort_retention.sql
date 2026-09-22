@@ -77,6 +77,17 @@
 -- NEEDS --full. The dev sample, 10-01 .. 10-07, holds two cohorts (09-30 and
 -- 10-07) and cannot observe any k above 1 for the first one.
 --
+-- ⚠️ TWO NOVEMBER COHORTS SIT ON A TRACKING OUTAGE (2026-09-23). No purchase
+-- was recorded for 38.4 hours from 2019-11-14 18:09:37 UTC, inside the 11-11
+-- week. Members whose first purchase fell in it are missing from the 11-11
+-- cohort, and those who bought again later enter a later cohort as new
+-- customers. So 11-11 is undercounted (roughly 30,000 against 146,154, order
+-- of magnitude only) and 11-18 is inflated. Undercounting the denominator
+-- biases retention upward, so the finding that 11-11 retains worst survives
+-- and would deepen; the 11-11 against 11-18 contrast is overstated.
+-- weekly_cohort_first_purchase_day.sql splits this cohort by arrival day and
+-- tests the promotion reading with the calendar week held fixed.
+--
 -- DIALECT: written in BigQuery form; scripts/run_sql.py shims both functions
 -- for DuckDB (docs/sql_dialects.md). ISOWEEK, not WEEK: BigQuery's WEEK starts
 -- on Sunday. k is TIMESTAMP_DIFF in seconds over 604,800 (7 x 86,400), because
