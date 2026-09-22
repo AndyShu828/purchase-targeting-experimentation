@@ -87,10 +87,19 @@
 -- possible interval is 1,801 seconds and FLOOR(LOG(2, 1801)) is 10. Those rows
 -- are absent rather than zero: the grouping only produces buckets that have
 -- data. That is a true consequence of the cut and not a filter, but a reader
--- comparing the two blocks sees eleven missing rows and has to know why. A
--- spine of literal bucket numbers LEFT JOINed onto the counts would show them
--- as zeroes and make the floor self-evident; it is one more CTE and has not
--- been added.
+-- comparing the two blocks sees eleven missing rows and has to know why.
+-- A spine of bucket numbers LEFT JOINed onto the counts would show them as
+-- zeroes. It is left out by decision (2026-09-23), for three reasons:
+--   1. There is no common spelling for it: DuckDB has no GENERATE_ARRAY, and
+--      FROM UNNEST([...]) AS x binds the alias differently on the two engines,
+--      so it would be 24 literal rows or a recursive CTE.
+--   2. A literal spine hard-codes the top bucket, 22, and so goes stale when
+--      the window is extended -- the one failure computed buckets are immune to.
+--   3. These eleven zeroes are impossible by definition, not measured. Printed
+--      as 0 they invite "nobody repurchases within an hour"; absent, with this
+--      note, they say the definition cannot produce such an interval.
+-- The event-level block has no empty bucket between -1 and 22 on the full
+-- data, so the occasion floor is the only place rows are missing.
 --
 -- cumulative_share_pct ALIGNS WITH bucket_high_seconds_excl, not with the low
 -- bound on the same row: it is the share at or below the top of this bucket.
