@@ -472,6 +472,8 @@ purchase 在 166 万次机会里从未超过 2 次 —— 这是**有硬上限�
 ## 检查八：按日按类的事件断档（2026-09-23 新增）
 
 > 查询：[`data_quality_daily_event_anomalies.sql`](../sql/analysis/data_quality_daily_event_anomalies.sql) · **全量验证**
+>
+> 完整事件记录（成因、重算、对 P4 的影响、两条方法论）：[`incident_2019_11_15.md`](incident_2019_11_15.md)
 
 ### 🔴 结论：2019-11-15 整天没有一条 `purchase`
 
