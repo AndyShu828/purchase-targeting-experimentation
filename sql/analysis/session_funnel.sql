@@ -26,6 +26,10 @@
 -- the session purchase rate (5.98%); strict is the rate through the funnel
 -- (3.99%). Report both, and never the strict rate as "the purchase rate".
 --
+-- THE 2019-11-15 OUTAGE UNDERSTATES THE PURCHASE STEP. Without the sessions
+-- that overlap it, loose is 6.31%, strict 4.21%, and strict cart -> purchase
+-- 48.50% rather than 40.45% (session_funnel_outage_sensitivity.sql).
+--
 -- THE STEP CONVERSION IS STRICT ONLY. strict_step_conversion_pct divides each
 -- step by the one before, which is a conversion rate only because every strict
 -- step is a subset of the previous one. The loose steps are not nested -- the
