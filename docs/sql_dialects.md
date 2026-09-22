@@ -33,6 +33,7 @@
 | `DATE_DIFF('second', a, b)`（DuckDB 形式，`part` 在前） | `60` | **报错** `A valid date part name is required` | 🔴 BigQuery |
 | `TIMESTAMP_DIFF(b, a, SECOND)` / `DATE_DIFF(b, a, SECOND)` / `UNIX_SECONDS(b) - UNIX_SECONDS(a)` | **报错**：函数不存在 / 找不到列 `SECOND` | `60` | DuckDB（本地可见） |
 | `ROUND(7, 4)`（整数参数） | `7`，**仍是整数** | `7.0`，FLOAT64 | 类型不同，值相同 |
+| `FROM UNNEST([1, 3, 6]) AS x`（取 `x` 参与运算） | **报错**：`x` 是 `STRUCT(unnest INTEGER)` | `1 / 3 / 6`，别名就是值 | 🔴 DuckDB —— 两边通用写法是 `SELECT 1 AS x UNION ALL …` |
 | 未起别名的 `COUNT(*)` | 列名 `count_star()` | 列名 `f0_` | 两边都难读 —— **所有聚合都起别名** |
 
 ⚠️ **时间差没有两边通用的写法。** 上表两行合起来：DuckDB 认的形式 BigQuery 不认，BigQuery 认的三种形式
