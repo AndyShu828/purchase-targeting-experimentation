@@ -100,9 +100,26 @@
 -- DIALECT: written in BigQuery form, TIMESTAMP_DIFF(end, start, SECOND) with
 -- end first. DuckDB has no TIMESTAMP_DIFF; scripts/run_sql.py defines it as a
 -- macro that only honours SECOND (docs/sql_dialects.md).
--- LOG(base, x) here is LOG(x, base) in BigQuery and fails quietly:
--- LOG(2, 5235330) would be read as log base 5235330 of 2 and every row would
--- collapse into one bucket. Not yet run against BigQuery.
+-- The base-2 bucket is LN(x) / LN(2), not LOG(2, x), because the two-argument
+-- LOG takes its arguments in the opposite order on the two engines: DuckDB
+-- reads LOG(base, x), BigQuery reads LOG(x, base). The original spelling was
+-- expected to fail quietly on BigQuery -- every row collapsing into one bucket
+-- as log base gap_seconds of 2 -- and it did fail, but loudly, and only by
+-- luck: one interval is exactly 1 second, log base 1 is undefined, and the job
+-- raised "Floating point error in function: LOG(2, 1)". Without that single row
+-- the answer would have been wrong and the query green. LN over LN has no
+-- argument order to get backwards, and it was checked to agree with the old
+-- spelling on exact powers of two, where a float division could have rounded
+-- into the neighbouring bucket.
+--
+-- ⚠️ THESE SHARES ARE AN UPPER BOUND ON THE INTERVAL (2026-09-23). Purchase
+-- tracking was down for 38.4 hours from 2019-11-14 18:09:37 UTC, so an
+-- interval spanning it is reported as one long gap instead of two short ones.
+-- The 80th percentile is 5.96 days here against 3.63 with those intervals
+-- dropped at event level, and 10.88 against 6.95 at occasion level; the
+-- dropping overshoots, so the truth is inside each pair.
+-- repurchase_interval_outage_sensitivity.sql holds both columns. The factor of
+-- two between the definitions survives at either end.
 --
 -- REGRESSION VALUES, full set, --full:
 --   purchase_event     962,318 intervals, 85 at zero, buckets -1 through 22
@@ -186,10 +203,10 @@ labelled_gaps AS (
 gap_buckets AS (
     SELECT
         gap_definition,
-        COALESCE(FLOOR(LOG(2, NULLIF(gap_seconds, 0))), -1) AS bucket_exponent,
+        COALESCE(FLOOR(LN(NULLIF(gap_seconds, 0)) / LN(2)), -1) AS bucket_exponent,
         COUNT(*) AS gap_count
     FROM labelled_gaps
-    GROUP BY gap_definition, COALESCE(FLOOR(LOG(2, NULLIF(gap_seconds, 0))), -1)
+    GROUP BY gap_definition, COALESCE(FLOOR(LN(NULLIF(gap_seconds, 0)) / LN(2)), -1)
 )
 
 SELECT
