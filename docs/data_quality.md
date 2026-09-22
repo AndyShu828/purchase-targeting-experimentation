@@ -251,8 +251,8 @@ purchase 在 166 万次机会里从未超过 2 次 —— 这是**有硬上限�
 
 ## 检查五：`user_session` 是不是会话标识
 
-> 查询：[`data_quality_session_gaps.sql`](../sql/analysis/data_quality_session_gaps.sql) · **全量验证**
-> 探针一的查询**尚未落盘**，数字已在全量上跑过，SQL 待补。
+> 查询：探针一 [`data_quality_session_users.sql`](../sql/analysis/data_quality_session_users.sql) ·
+> 探针二 [`data_quality_session_gaps.sql`](../sql/analysis/data_quality_session_gaps.sql) · **全量验证**
 
 第 2 步要自己按 30 分钟超时切分会话。动手之前必须先回答：自带的 `user_session`
 到底是什么？两条探针，问的是两件独立的事。
@@ -282,7 +282,11 @@ purchase 在 166 万次机会里从未超过 2 次 —— 这是**有硬上限�
 数值紧挨着（9 个里 7 个差值在 1–7 之间）、切换恒在第一个事件之后、切换处间隔只有数秒。
 推断是同一个人的首事件被打了临时 id，第二个事件才敲定真实 id。**这是 9 个例子的印象，
 不是 939 个的统计**，要进结论需要两条验证（`ROW_NUMBER` 查切换点位置、每会话
-`MAX(user_id) - MIN(user_id)` 的分布）。按影响排序（0.004%），优先级低。
+`MAX(user_id) - MIN(user_id)` 的分布）。
+
+**决定：不验证，机制止于印象。** 939 个会话占 0.004%，无论机制是什么都改变不了任何结论；
+自切会话按 `user_session` 分区，这些会话里的两个 `user_id` 会被并进同一个会话，影响同样是这个量级。
+引用时只说「几乎一对一」，不说「首事件被打了临时 id」。
 
 ### 探针二：它完全不划定时间边界
 
@@ -588,9 +592,9 @@ view 从不触发，它 11-15 的峰值是自身均值的 3.35 倍，够不到 4
 
 第 1 步 7 项检查已全部完成。剩余为非阻塞的收尾：
 
-- [ ] 检查五探针一（会话跨用户）的 SQL 落盘
-- [ ] 探针一的机制从「9 个例子的印象」升级为「939 个的统计」，或按影响（0.004%）
-      决定不做、在文中注明为止于印象
+- [x] ~~检查五探针一（会话跨用户）的 SQL 落盘~~ —— `data_quality_session_users.sql`，全量复现原数字
+- [x] ~~探针一的机制从「9 个例子的印象」升级为「939 个的统计」，或按影响（0.004%）
+      决定不做、在文中注明为止于印象~~ —— 决定不做，已在检查五注明止于印象
 - [x] ~~各条清洗规则（检查四、检查七）标注为草案，待确认后去掉标记~~ —— 2026-09-19 确认，标记已去掉
 
 ---
@@ -601,6 +605,7 @@ view 从不触发，它 11-15 的峰值是自身均值的 3.35 倍，够不到 4
 python scripts/run_sql.py sql/analysis/data_quality_nulls.sql --full
 python scripts/run_sql.py sql/analysis/event_type_distribution.sql --full
 python scripts/run_sql.py sql/analysis/data_quality_duplicates.sql --full
+python scripts/run_sql.py sql/analysis/data_quality_session_users.sql --full
 python scripts/run_sql.py sql/analysis/data_quality_session_gaps.sql --full
 python scripts/run_sql.py sql/analysis/data_quality_dates_and_price.sql --full
 python scripts/run_sql.py sql/analysis/data_quality_zero_price_by_event_type.sql --full
