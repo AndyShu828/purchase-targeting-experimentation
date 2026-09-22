@@ -97,12 +97,12 @@
 -- On a log scale, reading it against the low bound is wrong by a full factor
 -- of two. Both bounds are emitted so the row cannot be misread.
 --
--- DIALECT: date_diff(part, start, end) is DuckDB and returns end - start;
--- BigQuery spells it TIMESTAMP_DIFF(end, start, part), so the arguments swap
--- and porting them verbatim flips the sign silently. LOG(base, x) here is
--- LOG(x, base) in BigQuery -- the same shape of trap, and it fails quietly:
+-- DIALECT: written in BigQuery form, TIMESTAMP_DIFF(end, start, SECOND) with
+-- end first. DuckDB has no TIMESTAMP_DIFF; scripts/run_sql.py defines it as a
+-- macro that only honours SECOND (docs/sql_dialects.md).
+-- LOG(base, x) here is LOG(x, base) in BigQuery and fails quietly:
 -- LOG(2, 5235330) would be read as log base 5235330 of 2 and every row would
--- collapse into one bucket. Neither porting note has been run against BigQuery.
+-- collapse into one bucket. Not yet run against BigQuery.
 --
 -- REGRESSION VALUES, full set, --full:
 --   purchase_event     962,318 intervals, 85 at zero, buckets -1 through 22
@@ -125,7 +125,7 @@ purchase_gaps AS (
     SELECT
         user_id,
         event_time,
-        DATE_DIFF('second', previous_purchase_time, event_time) AS gap_seconds
+        TIMESTAMP_DIFF(event_time, previous_purchase_time, SECOND) AS gap_seconds
     FROM previous_purchase_times
 ),
 
@@ -156,12 +156,12 @@ occasion_starts AS (
 occasion_gaps AS (
     SELECT
         user_id,
-        DATE_DIFF(
-            'second',
+        TIMESTAMP_DIFF(
+            occasion_start,
             LAG(occasion_start, 1) OVER (
                 PARTITION BY user_id ORDER BY occasion_start
             ),
-            occasion_start
+            SECOND
         ) AS gap_seconds
     FROM occasion_starts
 ),

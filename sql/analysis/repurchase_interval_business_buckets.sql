@@ -62,9 +62,9 @@
 -- RIGHT-CENSORED, like every interval metric here: run --full. Conclusion 14
 -- found the 7-day sample shifting interval shares by up to 1.29x.
 --
--- DIALECT: DATE_DIFF('second', start, end) is the DuckDB form and does not
--- run on BigQuery (docs/sql_dialects.md). How to handle it across all files is
--- not yet decided.
+-- DIALECT: written in BigQuery form, TIMESTAMP_DIFF(end, start, SECOND) with
+-- end first. DuckDB has no TIMESTAMP_DIFF; scripts/run_sql.py defines it as a
+-- macro that only honours SECOND (docs/sql_dialects.md).
 --
 -- REGRESSION VALUES, full set, --full:
 --   bucket         purchase_event  shopping_occasion
@@ -92,7 +92,7 @@ purchase_gaps AS (
     SELECT
         user_id,
         event_time,
-        DATE_DIFF('second', previous_purchase_time, event_time) AS gap_seconds
+        TIMESTAMP_DIFF(event_time, previous_purchase_time, SECOND) AS gap_seconds
     FROM previous_purchase_times
 ),
 
@@ -123,12 +123,12 @@ occasion_starts AS (
 occasion_gaps AS (
     SELECT
         user_id,
-        DATE_DIFF(
-            'second',
+        TIMESTAMP_DIFF(
+            occasion_start,
             LAG(occasion_start, 1) OVER (
                 PARTITION BY user_id ORDER BY occasion_start
             ),
-            occasion_start
+            SECOND
         ) AS gap_seconds
     FROM occasion_starts
 ),

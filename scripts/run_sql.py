@@ -5,6 +5,13 @@ exposed as a view named `events`, which matches `FROM events` under a BigQuery
 default dataset. Dialect gaps are not patched over -- SAFE_DIVIDE and friends
 will fail here, which is the point of testing locally first.
 
+The one exception is BIGQUERY_SHIMS: time differences and week truncation have
+no spelling both engines accept (docs/sql_dialects.md), so the BigQuery form is
+defined as a DuckDB macro. A macro cannot read a bare date part like SECOND --
+DuckDB only accepts it because the parameter is never used -- so each shim
+hard-codes the one part it supports. tests/test_sql_dialect.py fails CI if a
+file uses any other part.
+
 Usage:
     python scripts/run_sql.py sql/analysis/data_quality.sql
     python scripts/run_sql.py sql/analysis/funnel.sql --full --limit 20
@@ -24,6 +31,21 @@ import duckdb
 
 from pte.config import load_config, resolve
 from pte.ingest.convert import parquet_source
+
+# BigQuery function -> (the only date part it supports here, DuckDB macro).
+# Never name a shim after a DuckDB built-in: CREATE MACRO date_diff silently
+# replaces the built-in for the whole connection (checked on 1.5.5).
+BIGQUERY_SHIMS = {
+    "TIMESTAMP_DIFF": (
+        "SECOND",
+        "CREATE MACRO timestamp_diff(end_ts, start_ts, part) AS "
+        "date_diff('second', start_ts, end_ts)",
+    ),
+    "TIMESTAMP_TRUNC": (
+        "ISOWEEK",
+        "CREATE MACRO timestamp_trunc(ts, part) AS date_trunc('week', ts)",
+    ),
+}
 
 
 def format_table(columns: Sequence[str], rows: Sequence[tuple[Any, ...]]) -> str:
@@ -79,6 +101,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     if temp_dir:
         resolve(temp_dir).mkdir(parents=True, exist_ok=True)
         con.execute(f"SET temp_directory = '{resolve(temp_dir).as_posix()}'")
+    for _part, macro in BIGQUERY_SHIMS.values():
+        con.execute(macro)
     con.execute(f"CREATE VIEW events AS SELECT * FROM {parquet_source(source_dir)}")
 
     print(f"{label}  events -> {source_dir}")

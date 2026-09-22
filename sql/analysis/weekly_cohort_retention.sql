@@ -13,7 +13,7 @@
 -- The filter to purchases therefore sits in the innermost layer: no window
 -- here needs to see other event types.
 --
--- WEEKS ARE CALENDAR WEEKS STARTING MONDAY (DuckDB DATE_TRUNC('week')), so the
+-- WEEKS ARE CALENDAR WEEKS STARTING MONDAY (TIMESTAMP_TRUNC(ts, ISOWEEK)), so the
 -- window 2019-10-01 .. 11-30 spans nine weeks, 09-30 .. 11-25. The first and
 -- last are six days long. k is the calendar distance in weeks between the week
 -- of a purchase and the week of the user's first purchase, a subtraction, not
@@ -77,10 +77,12 @@
 -- NEEDS --full. The dev sample, 10-01 .. 10-07, holds two cohorts (09-30 and
 -- 10-07) and cannot observe any k above 1 for the first one.
 --
--- DIALECT: DATE_TRUNC('week', ts) and DATE_DIFF('week', start, end) are the
--- DuckDB forms. On BigQuery the arguments are (ts, WEEK) and (end, start,
--- WEEK), and WEEK starts on Sunday -- ISOWEEK is the Monday week. Unverified;
--- see docs/sql_dialects.md for the pending decision on DATE_DIFF.
+-- DIALECT: written in BigQuery form; scripts/run_sql.py shims both functions
+-- for DuckDB (docs/sql_dialects.md). ISOWEEK, not WEEK: BigQuery's WEEK starts
+-- on Sunday. k is TIMESTAMP_DIFF in seconds over 604,800 (7 x 86,400), because
+-- TIMESTAMP_DIFF rejects WEEK on BigQuery and the shim only honours SECOND. The
+-- division is exact, since both ends are Monday 00:00 and UTC has no daylight
+-- saving; CAST turns the FLOAT64 it returns (2.0) into an integer k.
 --
 -- REGRESSION VALUES, --full, retention_pct (k = 0 is 100 throughout):
 --   cohort   size     k=1    k=2    k=3    k=4    k=5    k=6    k=7    k=8
@@ -97,8 +99,8 @@ WITH purchase_weeks AS (
     SELECT
         user_id,
         event_time,
-        DATE_TRUNC('week', event_time) AS purchase_week,
-        DATE_TRUNC('week', MIN(event_time) OVER (PARTITION BY user_id))
+        TIMESTAMP_TRUNC(event_time, ISOWEEK) AS purchase_week,
+        TIMESTAMP_TRUNC(MIN(event_time) OVER (PARTITION BY user_id), ISOWEEK)
             AS first_purchase_week
     FROM events
     WHERE event_type = 'purchase'
@@ -112,7 +114,10 @@ purchase_ks AS (
         user_id,
         purchase_week,
         first_purchase_week,
-        DATE_DIFF('week', first_purchase_week, purchase_week) AS purchase_gap_k
+        CAST(
+            TIMESTAMP_DIFF(purchase_week, first_purchase_week, SECOND) / 604800
+            AS INT64
+        ) AS purchase_gap_k
     FROM purchase_weeks
     GROUP BY user_id, purchase_week, first_purchase_week
 )

@@ -43,9 +43,9 @@
 -- rate is 0% or 100% by arithmetic rather than behaviour, and flagging them is
 -- more honest than dropping them. Read rates only where the flag is true.
 --
--- DIALECT: date_diff(part, start, end) is DuckDB and returns end - start.
--- BigQuery spells it TIMESTAMP_DIFF(end, start, part) -- the timestamps swap
--- places, so porting the arguments verbatim flips the sign silently.
+-- DIALECT: written in BigQuery form, TIMESTAMP_DIFF(end, start, SECOND) with
+-- end first. DuckDB has no TIMESTAMP_DIFF; scripts/run_sql.py defines it as a
+-- macro that only honours SECOND (docs/sql_dialects.md).
 WITH events_with_previous_time AS (
     SELECT
         user_session,
@@ -61,7 +61,7 @@ WITH events_with_previous_time AS (
 events_with_gaps AS (
     SELECT
         *,
-        DATE_DIFF('second', previous_event_time, event_time) AS gap_seconds
+        TIMESTAMP_DIFF(event_time, previous_event_time, SECOND) AS gap_seconds
     FROM events_with_previous_time
 ),
 
