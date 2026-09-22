@@ -34,6 +34,16 @@
 -- Any baseline drawn for the 11/15..11/28 experiment window has to come from
 -- November, not October.
 --
+-- ⚠️ MOST OF THAT DRIFT IS A DEFECT, NOT BEHAVIOUR (2026-09-23). Purchase
+-- tracking was down for 38.4 hours from 2019-11-14 18:09:37 UTC, so sessions
+-- overlapping it record carts and no purchases by construction. Dropping those
+-- sessions moves 11/15..30 from 65.00% to 51.74% and 11/01..14 from 58.89% to
+-- 54.30%; October is untouched. The 15.4pp gap against October is really about
+-- 2.1pp. cart_abandonment_outage_sensitivity.sql holds both columns. The rates
+-- in this file are the raw ones and are left as they are on purpose: this
+-- query answers "which categories", and the defect hits every category. Read
+-- the level against the companion file, the ranking here.
+--
 -- is_reportable flags a numerator of at least 100, the same threshold and the
 -- same reasoning as category_conversion_rate.sql: the tail is categories whose
 -- rate is 0% or 100% by arithmetic rather than behaviour. It passes 379 of the
