@@ -49,9 +49,9 @@
 -- has a category_code at all; 256 of the 647 emitted categories do. Reading a
 -- rate next to a 19-digit id needs category_conversion_rate.sql alongside.
 --
--- DIALECT: date_diff(part, start, end) is DuckDB and returns end - start.
--- BigQuery spells it TIMESTAMP_DIFF(end, start, part) -- the timestamps swap
--- places, so porting the arguments verbatim flips the sign silently.
+-- DIALECT: written in BigQuery form, TIMESTAMP_DIFF(end, start, SECOND) with
+-- end first. DuckDB has no TIMESTAMP_DIFF; scripts/run_sql.py defines it as a
+-- macro that only honours SECOND (docs/sql_dialects.md).
 WITH previous_event_times AS (
     SELECT
         event_type,
@@ -94,7 +94,7 @@ gap_seconds AS (
         is_cart,
         is_purchase,
         is_code_null,
-        DATE_DIFF('second', previous_event_time, event_time) AS gap_second
+        TIMESTAMP_DIFF(event_time, previous_event_time, SECOND) AS gap_second
     FROM
         previous_event_times
 ),

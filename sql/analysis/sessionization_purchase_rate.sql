@@ -25,10 +25,9 @@
 -- them would remove a different share from each side and manufacture a
 -- difference out of the filter rather than the definition.
 --
--- DIALECT: date_diff(part, start, end) is the DuckDB signature and returns
--- end - start. BigQuery spells this TIMESTAMP_DIFF(end, start, part) -- different
--- name, different argument order, and the two timestamps swap places. Porting
--- the arguments verbatim flips the sign silently. Not yet verified on BigQuery.
+-- DIALECT: written in BigQuery form, TIMESTAMP_DIFF(end, start, SECOND) with
+-- end first. DuckDB has no TIMESTAMP_DIFF; scripts/run_sql.py defines it as a
+-- macro that only honours SECOND (docs/sql_dialects.md).
 WITH events_with_previous_time AS (
     -- Event grain. A window function adds a column, it never collapses rows.
     -- PARTITION BY stops LAG at the partition boundary, so the first event of
@@ -46,7 +45,7 @@ WITH events_with_previous_time AS (
 events_with_gaps AS (
     SELECT
         *,
-        DATE_DIFF('second', previous_event_time, event_time) AS gap_seconds
+        TIMESTAMP_DIFF(event_time, previous_event_time, SECOND) AS gap_seconds
     FROM events_with_previous_time
 ),
 

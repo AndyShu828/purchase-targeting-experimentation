@@ -63,8 +63,9 @@
 --
 -- SESSIONS ARE CUT ON THE 30-MINUTE TIMEOUT, as in session_funnel.sql.
 --
--- DIALECT: DATE_DIFF('second', start, end) is DuckDB's form and BigQuery
--- rejects it; no spelling runs on both. See docs/sql_dialects.md.
+-- DIALECT: written in BigQuery form, TIMESTAMP_DIFF(end, start, SECOND) with
+-- end first. DuckDB has no TIMESTAMP_DIFF; scripts/run_sql.py defines it as a
+-- macro that only honours SECOND (docs/sql_dialects.md).
 WITH previous_event_times AS (
     SELECT
         event_type,
@@ -105,7 +106,7 @@ gap_seconds AS (
         is_view,
         is_cart,
         is_purchase,
-        DATE_DIFF('second', previous_event_time, event_time) AS gap_second,
+        TIMESTAMP_DIFF(event_time, previous_event_time, SECOND) AS gap_second,
 
         CASE
             WHEN is_purchase = 1

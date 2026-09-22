@@ -17,12 +17,12 @@
 --   * aggregates cannot be nested, so counting the sessions whose MAX exceeds a
 --     threshold cannot happen in the block that computes that MAX.
 --
--- DIALECT: date_diff(part, start, end) is the DuckDB signature and returns
--- end - start. BigQuery spells this TIMESTAMP_DIFF(end, start, part) -- different
--- name, different argument order, and the two timestamps swap places. Porting the
--- arguments verbatim flips the sign silently, which MAX then reads as the
--- shortest gap rather than the longest, producing a clean-looking "every session
--- respects the timeout". Not yet verified on BigQuery.
+-- DIALECT: written in BigQuery form, TIMESTAMP_DIFF(end, start, SECOND) with
+-- end first. DuckDB has no TIMESTAMP_DIFF; scripts/run_sql.py defines it as a
+-- macro that only honours SECOND (docs/sql_dialects.md).
+-- Swapping the two timestamps flips the sign silently, which MAX then reads as
+-- the shortest gap rather than the longest, producing a clean-looking "every
+-- session respects the timeout".
 WITH event_gaps AS (
     -- Event grain: 109,950,743 rows in, 109,950,743 rows out. A window function
     -- adds a column, it never collapses rows. PARTITION BY keeps LAG from
@@ -45,7 +45,7 @@ session_gaps AS (
     SELECT
         user_session,
         COUNT(*) AS event_count,
-        MAX(DATE_DIFF('second', previous_event_time, event_time)) AS max_event_gap_seconds
+        MAX(TIMESTAMP_DIFF(event_time, previous_event_time, SECOND)) AS max_event_gap_seconds
     FROM event_gaps
     GROUP BY user_session
 )

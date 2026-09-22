@@ -62,26 +62,39 @@ DuckDB 一个都没有。这是本文唯一一个「写对了也跑不了两边�
 
 ## 对本项目的影响
 
-### 🔴 7 个文件在 BigQuery 上跑不了（第 4 步的阻塞项）
+### 时间差：选了方案 1（2026-09-23 Andy 定）
 
-会话切分那一层用的是 DuckDB 形式的 `DATE_DIFF('second', previous_event_time, event_time)`，
-而 BigQuery 不接受字符串形式的 `part`。用到它的文件：
+`sql/analysis/` 统一写 BigQuery 形式 `TIMESTAMP_DIFF(end, start, SECOND)`（**end 在前**，和 DuckDB 的
+`DATE_DIFF('second', start, end)` 顺序相反）。DuckDB 侧由 `scripts/run_sql.py` 的 `BIGQUERY_SHIMS` 注册同名宏。
+10 个文件已改写，开发样本上逐行输出与改写前一致（两个文件只差并列行的顺序）。
 
-- `cart_abandonment_by_category.sql`
-- `category_conversion_rate.sql`
-- `data_quality_session_gaps.sql`
-- `repurchase_interval_distribution.sql`
-- `sessionization_event_count_distribution.sql`
-- `sessionization_purchase_rate.sql`
-- `sessionization_purchase_segment.sql`
+曾考虑过的另外两个方案：用 sqlglot 转译整套方言（多一层依赖、出错更难查）；文件保持 DuckDB 形式、
+上 BigQuery 时再改（违反「`sql/analysis/` 写 BigQuery 语法」的约定）。
 
-⑤ 的两个新文件也会用到。**CI 是绿的**：sqlfluff（`dialect = bigquery`）只查语法，不查函数签名。
+实测时暴露的两个坑（DuckDB 1.5.5），决定了宏的形状：
 
-由于没有两边通用的写法，第 4 步之前要选一个处理方式（**未决定**）：
+| 现象 | 后果 |
+| --- | --- |
+| 宏的参数传裸标识符 `SECOND` 不报错 —— 只因为宏体没用到这个参数，没去绑定它 | 宏**读不到** part，只能写死一种；`TIMESTAMP_DIFF(b, a, DAY)` 本地会静默返回秒数 |
+| `CREATE MACRO date_diff(...)` 成功，并**静默覆盖**同名内置函数，整个连接内生效 | 宏不能取 DuckDB 内置函数的名字，所以没法用宏模拟 BigQuery 的 `DATE_DIFF(..., ISOWEEK)` |
 
-1. `run_sql.py` 在 DuckDB 侧注册一个 `TIMESTAMP_DIFF` 宏，文件统一写 BigQuery 形式 —— 和「不打补丁」的原则冲突，但只补这一个函数
-2. 用转译工具（如 sqlglot）在 DuckDB 上执行前把 BigQuery 方言转成 DuckDB 方言
-3. 文件保持 DuckDB 形式，上 BigQuery 时再改写 —— 最省事，但违反「`sql/analysis/` 写 BigQuery 语法」的约定
+所以每个宏只认一种 part，由 `tests/test_sql_dialect.py` 守着：用了别的 part、或者还有带引号 part 的 DuckDB 形式，CI 就红。
+
+| BigQuery 写法 | DuckDB 宏 | 唯一允许的 part |
+| --- | --- | --- |
+| `TIMESTAMP_DIFF(end, start, SECOND)` | `date_diff('second', start, end)` | `SECOND` |
+| `TIMESTAMP_TRUNC(ts, ISOWEEK)` | `date_trunc('week', ts)` | `ISOWEEK` |
+
+### 周的起始日（⑥ cohort）
+
+BigQuery 沙盒实测，`2019-10-06` 是周日：
+
+| 写法 | 结果 |
+| --- | --- |
+| `TIMESTAMP_TRUNC(ts, ISOWEEK)` | `2019-09-30`（周一），和 DuckDB 的 `date_trunc('week', …)` 一致 |
+| `TIMESTAMP_TRUNC(ts, WEEK)` | `2019-10-06`（周日）—— 每个 cohort 错开一天 |
+| `TIMESTAMP_DIFF(b, a, WEEK)` | **报错**：TIMESTAMP 类型不支持 WEEK |
+| `DATE_DIFF(DATE b, DATE a, ISOWEEK)` | `2`，可用，但 DuckDB 侧无法用宏模拟（见上表第二个坑） |
 
 ### ④ 的过滤理由成立，但文件头有一句不对
 
