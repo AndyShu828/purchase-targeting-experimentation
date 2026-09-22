@@ -23,12 +23,21 @@
 -- counted as positive and the bucket check would still pass. Detecting NaN
 -- needs an explicit isnan(); this query does not claim to exclude it.
 --
--- DIALECT: DATE - DATE returns a day count in DuckDB. The subtraction is chosen
--- over DATE_DIFF deliberately: BigQuery spells that DATE_DIFF(end, start, part)
--- while DuckDB takes date_diff(part, start, end), so porting the arguments
--- verbatim reverses the sign in silence. Written as `MAX - MIN` the order is
--- visible in the expression and cannot be quietly transposed. Whether BigQuery
--- accepts DATE - DATE is not yet verified; if it does not, it fails loudly.
+-- DIALECT: `MAX(event_date) - MIN(event_date) + 1` was the original spelling,
+-- on the reasoning that DATE - DATE is a day count in DuckDB and would fail
+-- loudly elsewhere. It did, on the first BigQuery dry run: there DATE - DATE
+-- is an INTERVAL, so the `+ 1` raises "Unable to coerce type INT64 to expected
+-- type INTERVAL". Loudly was the right prediction; portable it was not.
+--
+-- The day count is now seconds over 86,400 through the TIMESTAMP_DIFF shim
+-- (scripts/run_sql.py, docs/sql_dialects.md), the same idiom as k in
+-- weekly_cohort_retention.sql. DATE_DIFF cannot be used: BigQuery spells it
+-- DATE_DIFF(end, start, part) against DuckDB's date_diff(part, start, end),
+-- and it cannot be shimmed either, since a macro named after a DuckDB built-in
+-- silently replaces it. Both ends are midnight UTC, so the division is exact.
+--
+-- The count moved into its own CTE so the expression is written once. It used
+-- to appear twice, in the value and in the check beside it.
 WITH daily_counts AS (
     SELECT
         event_date,
@@ -48,28 +57,54 @@ WITH daily_counts AS (
         MAX(price) AS max_price
     FROM events
     GROUP BY event_date
+),
+
+
+date_summary AS (
+    SELECT
+        -- Reconciliation, not a finding: grouping by date must preserve the row
+        -- count, and it must agree with the same total reached by grouping by
+        -- session in data_quality_session_gaps.sql.
+        SUM(event_count) AS total_events,
+        MIN(event_date) AS first_date,
+        MAX(event_date) AS last_date,
+        COUNT(*) AS actual_dates,
+        CAST(
+            TIMESTAMP_DIFF(
+                CAST(MAX(event_date) AS TIMESTAMP),
+                CAST(MIN(event_date) AS TIMESTAMP),
+                SECOND
+            ) / 86400
+            AS INT64
+        ) + 1 AS expected_dates,
+        SUM(price_positive) AS price_positive,
+        SUM(price_zero) AS price_zero,
+        SUM(price_negative) AS price_negative,
+        SUM(price_null) AS price_null,
+        MIN(min_price) AS min_price,
+        MAX(max_price) AS max_price,
+        (
+            SUM(price_positive) + SUM(price_zero) + SUM(price_negative)
+            + SUM(price_null) = SUM(event_count)
+        ) AS price_bucket_check
+    FROM daily_counts
 )
 
 SELECT
-    -- Reconciliation, not a finding: grouping by date must preserve the row
-    -- count, and it must agree with the same total reached by grouping by
-    -- session in data_quality_session_gaps.sql.
-    SUM(event_count) AS total_events,
-    MIN(event_date) AS first_date,
-    MAX(event_date) AS last_date,
-    COUNT(*) AS actual_dates,
-    MAX(event_date) - MIN(event_date) + 1 AS expected_dates,
-    -- Both numbers stay above so that a failure says how many days are missing,
-    -- not merely that some are.
-    (MAX(event_date) - MIN(event_date) + 1 = COUNT(*)) AS date_equal_check,
-    SUM(price_positive) AS price_positive,
-    SUM(price_zero) AS price_zero,
-    SUM(price_negative) AS price_negative,
-    SUM(price_null) AS price_null,
-    MIN(min_price) AS min_price,
-    MAX(max_price) AS max_price,
-    (
-        SUM(price_positive) + SUM(price_zero) + SUM(price_negative)
-        + SUM(price_null) = SUM(event_count)
-    ) AS price_bucket_check
-FROM daily_counts;
+    total_events,
+    first_date,
+    last_date,
+    actual_dates,
+    expected_dates,
+    price_positive,
+    price_zero,
+    price_negative,
+    price_null,
+    min_price,
+    max_price,
+    price_bucket_check,
+    -- Both counts stay above so that a failure says how many days are missing,
+    -- not merely that some are. Column order here is sqlfluff's ST06: plain
+    -- columns first, computed ones last.
+    (expected_dates = actual_dates) AS date_equal_check
+FROM date_summary;

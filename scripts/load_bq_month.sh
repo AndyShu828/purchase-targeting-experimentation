@@ -39,10 +39,18 @@ echo "loading ${#files[@]} files into $table"
 start=$SECONDS
 for file in "${files[@]}"; do
     printf '%s ' "$(basename "$file")"
-    bq --project_id="$project" load \
+    # Only bq's progress chatter is dropped. An earlier version sent stderr to
+    # /dev/null too and a schema mismatch came out as a bare filename with no
+    # reason; the run also looked successful from outside, because it was piped
+    # into tail and a pipeline reports the exit status of its last command.
+    if ! bq --project_id="$project" load \
         --source_format=PARQUET \
         --noreplace \
-        "$table" "$file" >/dev/null 2>&1
+        "$table" "$file" >/dev/null; then
+        echo "FAILED"
+        echo "load failed on $file -- table may hold a partial month" >&2
+        exit 1
+    fi
     echo "ok"
 done
 echo "done in $((SECONDS - start))s"

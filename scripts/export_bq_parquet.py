@@ -27,6 +27,14 @@ from pte.ingest.convert import parquet_source
 # still exact. DECIMAL maps to BigQuery NUMERIC on load.
 PRICE_TYPE = "DECIMAL(10, 2)"
 
+# day_index is the partition key on BigQuery: days since DAY_ZERO, 0..60 for
+# the two months. A DATE partition is impossible in a sandbox project, where
+# partition expiry maxes out at 60 days and is measured from the partition's
+# own date -- 2019 partitions expire the moment they land. An integer range
+# partition carries no such clock. The anchor is fixed here rather than derived
+# from the month being exported, so October and November share one numbering.
+DAY_ZERO = "2019-10-01"
+
 
 def month_bounds(month: str) -> tuple[str, str]:
     """Return [first day, first day of next month) for a YYYY-MM string."""
@@ -102,7 +110,10 @@ def main(argv: Sequence[str] | None = None) -> None:
                 -- it again as a literal would not raise: DuckDB renames the
                 -- second one event_date_1 and BigQuery would receive both.
                 SELECT * EXCLUDE (price),
-                       CAST(price AS {PRICE_TYPE}) AS price
+                       CAST(price AS {PRICE_TYPE}) AS price,
+                       CAST(
+                           DATE_DIFF('day', DATE '{DAY_ZERO}', event_date) AS BIGINT
+                       ) AS day_index
                 FROM {parquet_source(source_dir)}
                 WHERE event_date = DATE '{day}'
             ) TO '{(out_dir / f"events_{day}.parquet").as_posix()}'
