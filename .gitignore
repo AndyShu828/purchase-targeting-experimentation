@@ -22,6 +22,7 @@ __pycache__/
 mlruns/
 mlartifacts/
 logs/
+.claude/worktrees/
 
 # OS / editor
 .DS_Store
