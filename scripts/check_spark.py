@@ -6,24 +6,9 @@ Run from the repository root:  python scripts/check_spark.py [--full]
 from __future__ import annotations
 
 import argparse
-import sys
 from collections.abc import Sequence
 
-from pyspark.sql import SparkSession
-
-from pte.config import load_config, resolve
-
-
-def build_session() -> SparkSession:
-    """Local session whose Python workers use the active virtualenv interpreter."""
-    return (
-        SparkSession.builder.appName("pte-check-spark")
-        .master("local[*]")
-        .config("spark.pyspark.python", sys.executable)
-        .config("spark.pyspark.driver.python", sys.executable)
-        .config("spark.sql.session.timeZone", "UTC")
-        .getOrCreate()
-    )
+from pte.spark import build_session, read_events
 
 
 def main(argv: Sequence[str] | None = None) -> None:
@@ -34,16 +19,11 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--env", default=None, help="config name under configs/ (default: dev)")
     args = parser.parse_args(argv)
 
-    cfg = load_config(args.env)
-    path = resolve(cfg["paths"]["events_dir" if args.full else "sample_dir"])
-    # Spark needs a file:// URI here; a bare Windows drive path is read as a bad scheme.
-    source = path.as_uri()
-
-    spark = build_session()
+    spark = build_session("pte-check-spark")
     spark.sparkContext.setLogLevel("WARN")
     try:
-        df = spark.read.parquet(source)
-        print(f"source={source}")
+        df = read_events(spark, full=args.full, env=args.env)
+        print(f"source={df.inputFiles()[0].rsplit('/event_date=', 1)[0]}")
         df.printSchema()
         by_date = df.groupBy("event_date").count().orderBy("event_date")
         by_date.show(100, truncate=False)
