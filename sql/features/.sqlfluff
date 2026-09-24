@@ -1,0 +1,4 @@
+[sqlfluff]
+# Feature SQL is the DuckDB side of the Spark vs DuckDB comparison (plan v2, P2); it never
+# runs on BigQuery, so it is linted as DuckDB rather than through the shims in run_sql.py.
+dialect = duckdb
