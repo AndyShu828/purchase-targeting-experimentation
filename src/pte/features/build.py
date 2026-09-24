@@ -15,6 +15,7 @@ from pyspark.sql import DataFrame
 from pte.features.activity import build_activity_features
 from pte.features.intent import build_intent_features
 from pte.features.labels import build_labels, build_population
+from pte.features.preference import build_preference_features
 from pte.features.purchase import build_purchase_features
 
 # Each takes (events, population, cutoff, window_days) and returns one row per population
@@ -23,6 +24,7 @@ FEATURE_GROUPS: list[Callable[[DataFrame, DataFrame, date, int], DataFrame]] = [
     build_activity_features,
     build_purchase_features,
     build_intent_features,
+    build_preference_features,
 ]
 
 # Decided 2026-09-24 (docs/incident_2019_11_15.md section 4.3): the cutoff is the first
