@@ -6,6 +6,7 @@ paths:
   raw_dir: /home/andy/pte-data/raw
   events_dir: /home/andy/pte-data/parquet/events
   sample_dir: /home/andy/pte-data/parquet/sample_1001_1007
+  features_dir: /home/andy/pte-data/features
 
 ingest:
   months: ["2019-Oct", "2019-Nov"]
