@@ -5,6 +5,7 @@ paths:
   raw_dir: data/raw
   events_dir: data/parquet/events
   sample_dir: data/parquet/sample_1001_1007
+  features_dir: data/features
 
 ingest:
   months: ["2019-Oct", "2019-Nov"]
