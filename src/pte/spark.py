@@ -34,6 +34,10 @@ def build_session(
         .config("spark.pyspark.python", sys.executable)
         .config("spark.pyspark.driver.python", sys.executable)
         .config("spark.sql.session.timeZone", "UTC")
+        # In local mode the driver JVM runs every task. Its 1g default ran out of heap on
+        # the session windows over 14 days of events (2026-09-25); WSL here has 15 GB.
+        # Only takes effect if this call starts the JVM, i.e. before any other session.
+        .config("spark.driver.memory", "8g")
     )
     for key, value in (conf or {}).items():
         builder = builder.config(key, value)
