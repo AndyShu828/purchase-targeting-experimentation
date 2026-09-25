@@ -1,4 +1,4 @@
-"""Why a fill value must be frozen: the numbers behind docs/leakage.md section 3.x.
+"""Why a fill value must be frozen: the numbers behind docs/leakage.md section 3.3.
 
 Run under WSL from the repository root, after scripts/build_features.py:
     PTE_ENV=wsl python scripts/fill_value_invariance.py
