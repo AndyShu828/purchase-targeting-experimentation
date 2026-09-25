@@ -2,7 +2,7 @@
 
 > 三个截止日的特征表与标签表，由 `scripts/build_features.py` 生成（WSL，`PTE_ENV=wsl`）。
 > 代码在 `src/pte/features/`；每组的 SQL 逻辑由 Andy 在 DuckDB 上写成，PySpark 版逐数对账一致。
-> **本文件随特征组增加而更新**：偏好、趋势、会话三组，以及活跃度组的「会话数」、意向组的「浏览到加购转化率」尚未加入。
+> **本文件随特征组增加而更新**：趋势、会话两组，以及活跃度组的「会话数」、意向组的「浏览到加购转化率」尚未加入。
 
 ## 1. 三个截止日
 
@@ -39,11 +39,21 @@ LightGBM 原生处理 NULL；逻辑回归基线要在 P3 补值（加缺失指�
 | | `avg_price` | `total_spend / n_purchases` | 窗口内没买过 |
 | | `days_since_last_purchase` | 截止日 − 最后一次购买的日期 | 窗口内没买过 |
 | 意向 | `cart_abandon_rate` | 未购的 (会话, 类目) 对 ÷ 有加购的对；剔除与断档重叠的会话 | 窗口内没有（可信的）加购对 |
+| 偏好 | `n_categories` | 不同 `category_id` 数（全部事件） | — |
+| | `n_brands` | 不同品牌数，`brand` 为 NULL 的不算 | — |
+| | `price_percentile` | 每条 `price > 0` 事件在同 `category_id` 内的价格排名（`PERCENT_RANK`，0–1），按用户取平均；排名参照只用特征窗口 | 窗口内没有正价事件 |
+| | `main_category_id` | 事件数最多的类目；并列取最近一次活动的，再并列取 id 小的 | 窗口内无事件 |
+| | `main_category_conversion_rate` | 主类目在特征窗口内的 (会话, 类目) 对购买率（宽口径，不要求加购）；剔除与断档重叠的会话 | 主类目只出现在断档会话里 |
 
 **有效天数**（`src/pte/features/outage.py`）= `window_days` − 与购买断档（11-14 18:09:37 → 11-16 08:32:34，38.3825 小时）重叠的时长。
 训练、验证为 14；测试为 12.40。决定 2026-09-25：**比率列是主特征集，原始计数留作敏感性对照**。
 假设购买在时间上均匀分布，而断档正好压在大促尖峰上，所以只能部分修正。
 `avg_price` 是比值，不需要修；`days_since_last_purchase` 修不了，只能注明。
+
+**`main_category_id` 是类别，不是数值**：id 的大小没有含义，11-18 时有 641 个不同值。
+LightGBM 要把它声明为类别特征；逻辑回归基线不能直接用这一列（独热编码还是丢掉，P3 决定）。
+`main_category_conversion_rate` 就是它的数值化版本。小类目不做处理（决定 2026-09-25）：
+11-18 时 652 个类目里有 33 个不到 100 个对，是 73 个用户的主类目。
 
 **会话**：30 分钟无事件即切开，在 `(user_id, user_session)` 内切（`src/pte/features/sessions.py`）。
 **先按特征窗口过滤事件，再切会话**：跨越截止日的会话在截止日被截断，否则它在截止日之后的购买会泄漏进特征。
@@ -62,11 +72,16 @@ LightGBM 原生处理 NULL；逻辑回归基线要在 P3 补值（加缺失指�
 | `total_spend_per_day` | 4.27 | 4.05 | 5.59 |
 | `avg_price` | 279.6 | 285.3 | 293.5 |
 | `cart_abandon_rate` | 0.512 | 0.533 | 0.553 |
+| `n_categories` | 2.201 | 2.153 | 2.805 |
+| `n_brands` | 2.904 | 2.749 | 3.860 |
+| `price_percentile` | 0.4961 | 0.4972 | 0.4875 |
+| `main_category_conversion_rate` | 0.0580 | 0.0562 | 0.0603 |
 
 | NULL 行数 | 训练 | 验证 | 测试 |
 | --- | --: | --: | --: |
 | `avg_price` / `days_since_last_purchase` | 1,513,023 | 1,615,982 | 2,021,300 |
 | `cart_abandon_rate` | 1,548,058 | 1,610,341 | 1,865,553 |
+| `price_percentile` | 641 | 421 | 1,025 |
 
 **测试集的特征分布偏离训练集**：`n_carts` 均值是训练集的 4.2 倍，`n_events` 是 1.6 倍，
 已按断档修正的 `n_purchases_per_day` 仍高 30%。这是测试窗口方案 B 的已知代价：特征窗口 11/04–11/17

@@ -35,6 +35,7 @@ from pte.features.build import CUTOFFS, WINDOW_DAYS
 from pte.features.intent import build_intent_features
 from pte.features.labels import build_population
 from pte.features.outage import effective_days
+from pte.features.preference import build_preference_features
 from pte.features.purchase import build_purchase_features
 from pte.spark import build_session, read_events
 
@@ -43,6 +44,7 @@ GROUPS = {
     "activity": build_activity_features,
     "purchase": build_purchase_features,
     "intent": build_intent_features,
+    "preference": build_preference_features,
 }
 
 
