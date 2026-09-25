@@ -1,7 +1,6 @@
 # Spark vs DuckDB：同一批特征，两个引擎
 
-> **草稿（Claude 2026-09-26 起草）**。第 4 节「单机为什么用 Spark」是论述，**待 Andy 审、要能自己讲**；
-> 其余是实测数字。计时设计是 Claude 定的，写在两个脚本的文件头里，同样待 Andy 审。
+> Claude 2026-09-26 起草，Andy 同日审定第 4 节。其余是实测数字；计时设计是 Claude 定的，写在两个脚本的文件头里。
 
 P2 的六个特征组各有两份实现：Andy 在 DuckDB 上写的 SQL（[`sql/features/`](../sql/features/)），
 和 Claude 翻译的 PySpark（[`src/pte/features/`](../src/pte/features/)）。计划 v2 要求比较两者的耗时并确认结果一致；
