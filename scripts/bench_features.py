@@ -37,6 +37,7 @@ from pte.features.labels import build_population
 from pte.features.outage import effective_days
 from pte.features.preference import build_preference_features
 from pte.features.purchase import build_purchase_features
+from pte.features.session import build_session_features
 from pte.features.trend import build_trend_features
 from pte.spark import build_session, read_events
 
@@ -47,6 +48,7 @@ GROUPS = {
     "intent": build_intent_features,
     "preference": build_preference_features,
     "trend": build_trend_features,
+    "session": build_session_features,
 }
 
 
