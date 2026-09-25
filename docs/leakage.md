@@ -101,6 +101,7 @@
 
 > 推导：Andy（2026-09-25）；Claude 修正三处、补充最后两点，并做了实测。实测用的是**玩具模型**：无正则逻辑回归，
 > 在训练集上按取值聚合成格子，用牛顿法求精确的最大似然解。**不是 P3 的模型。**
+> 复现：`PTE_ENV=wsl python scripts/fill_value_invariance.py`（需先跑 `scripts/build_features.py`）。
 
 以 `days_since_last_purchase`（记为 $X$）为例，NULL 表示 14 天内没买过。
 
