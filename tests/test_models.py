@@ -8,9 +8,29 @@ from pte.model.lgbm import EARLY_STOPPING_ROUNDS, MAX_TREES, TUNED_PARAMS, train
 from pte.model.logreg import build_logreg
 
 
-def test_model_features_drops_id_label_and_category_id():
-    df = pd.DataFrame(columns=["user_id", "n_events", "main_category_id", "total_spend", "label"])
-    assert model_features(df) == ["n_events", "total_spend"]
+def test_model_features_drops_id_label_category_id_and_raw_counts():
+    df = pd.DataFrame(
+        columns=[
+            "user_id",
+            "n_events",
+            "n_purchases",
+            "purchase_days",
+            "total_spend",
+            "n_purchases_per_day",
+            "purchase_days_per_day",
+            "total_spend_per_day",
+            "main_category_id",
+            "avg_price",
+            "label",
+        ]
+    )
+    assert model_features(df) == [
+        "n_events",
+        "n_purchases_per_day",
+        "purchase_days_per_day",
+        "total_spend_per_day",
+        "avg_price",
+    ]
 
 
 def write_split(root, split, features, labels):

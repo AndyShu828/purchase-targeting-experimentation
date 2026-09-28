@@ -23,7 +23,7 @@ import lightgbm as lgb
 import pandas as pd
 from numpy.typing import ArrayLike
 
-MAX_TREES = 2000  # an upper bound only; early stopping ends far sooner (145 on 23 features)
+MAX_TREES = 2000  # an upper bound only; early stopping ends far sooner (145 on 20 features)
 EARLY_STOPPING_ROUNDS = 50
 TUNED_PARAMS = {"num_leaves": 63, "min_child_samples": 500, "learning_rate": 0.05}
 
