@@ -19,6 +19,23 @@ Then the 23-feature LightGBM is calibrated on valid (2026-09-29, leakage.md 3.4)
 of valid is scored by a calibrator fit on the other half: Brier 0.042358 uncalibrated,
 0.042321 isotonic, 0.042317 Platt. The final Platt, fit on all of valid, has w = 1.0059 and
 c = -0.0970 and brings the mean prediction from 5.4939% to the actual 5.0003%.
+
+Last, the same LightGBM by segment (2026-09-29, Andy computed the ROC-AUCs in the notebook):
+
+| segment        |       n |  rate | ROC-AUC |     AP | lift@10% | RFM ROC-AUC |
+| -------------- | ------: | ----: | ------: | -----: | -------: | ----------: |
+| all            | 1793124 | 5.00% |  0.7654 | 0.2524 |   4.2820 |      0.6698 |
+| bought         |  177142 | 20.8% |  0.7092 | 0.4487 |   2.6836 |      0.6515 |
+| not bought     | 1615982 | 3.26% |  0.6724 | 0.0691 |   2.5635 |      0.5000 |
+| active 1 day   | 1194699 | 3.11% |  0.7007 | 0.1113 |   3.5740 |      0.6138 |
+| active 2+ days |  598425 | 8.78% |  0.7546 | 0.3373 |   3.8729 |      0.6908 |
+
+Both halves of each split score below the whole: 38% of all (buyer, non-buyer) pairs are a
+future buyer who bought in the window against a non-buyer who did not, and LightGBM orders
+those right 99.3% of the time. The reverse pairs, a new buyer against a past buyer who does
+not come back, it orders right only 6.4% of the time. RFM gives every non-buyer 0, so it
+cannot rank them at all (0.5000). The global Platt shift leaves segments off by up to 0.7
+points: bought 20.13% against 20.84% actual, not bought 3.34% against 3.26%.
 """
 
 from __future__ import annotations
@@ -35,6 +52,7 @@ from pte.model.lgbm import train_lgbm
 from pte.model.logreg import build_logreg
 from pte.model.metrics import evaluate
 from pte.model.rfm import fit_spend_bins, rfm_score
+from pte.model.segments import evaluate_segments, pair_auc
 
 # The four columns RFM itself reads, as the models' small feature set.
 RFM_FEATURES = ["n_events", "n_purchases", "days_since_last_purchase", "total_spend"]
@@ -52,7 +70,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     features = model_features(train)
     y_train, y_valid = train["label"], valid["label"]
 
-    rows = {"RFM": evaluate(y_valid, rfm_score(valid, fit_spend_bins(train)), probability=False)}
+    rfm_valid = rfm_score(valid, fit_spend_bins(train))
+    rows = {"RFM": evaluate(y_valid, rfm_valid, probability=False)}
     for name, cols in [("4 features", RFM_FEATURES), (f"{len(features)} features", features)]:
         logreg = build_logreg().fit(train[cols], y_train)
         rows[f"logistic, {name}"] = evaluate(y_valid, logreg.predict_proba(valid[cols])[:, 1])
@@ -81,6 +100,14 @@ def main(argv: Sequence[str] | None = None) -> None:
         f"Final Platt on all of valid: w = {platt.coef_[0][0]:.4f}, c = {platt.intercept_[0]:.4f}; "
         f"mean {p_valid.mean():.4%} -> {q_valid.mean():.4%}, actual {y_valid.mean():.4%}"
     )
+
+    segments = evaluate_segments(valid, p_valid)
+    segments.insert(3, "mean_platt", evaluate_segments(valid, q_valid)["mean_score"])
+    segments["rfm_roc_auc"] = evaluate_segments(valid, rfm_valid, probability=False)["roc_auc"]
+    print(f"\nLightGBM, {len(features)} features, by segment (mean_score is before calibration)")
+    print(segments.round(4).to_string())
+    print("\nROC-AUC by where each pair's positive and negative come from (group = bought)")
+    print(pair_auc(p_valid, y_valid, valid["n_purchases"] > 0).round(4).to_string(index=False))
 
 
 if __name__ == "__main__":
