@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 
 from pte.model.data import load_split, model_features
-from pte.model.lgbm import EARLY_STOPPING_ROUNDS, MAX_TREES, train_lgbm
+from pte.model.lgbm import EARLY_STOPPING_ROUNDS, MAX_TREES, TUNED_PARAMS, train_lgbm
 from pte.model.logreg import build_logreg
 
 
@@ -80,6 +80,16 @@ def test_lgbm_stops_early_and_keeps_only_the_best_trees():
     # the EARLY_STOPPING_ROUNDS trees grown after the best one are dropped, so
     # predict_proba cannot use them by accident
     assert model.booster_.current_iteration() == best
+
+
+def test_lgbm_defaults_to_the_tuned_params_and_lets_the_caller_override():
+    x, y = noisy_data(1200, 3)
+    tuned = train_lgbm(x[:800], y[:800], x[800:], y[800:])
+    assert {k: tuned.get_params()[k] for k in TUNED_PARAMS} == TUNED_PARAMS
+    untuned = train_lgbm(x[:800], y[:800], x[800:], y[800:], num_leaves=31, learning_rate=0.1)
+    assert untuned.get_params()["num_leaves"] == 31
+    assert untuned.get_params()["learning_rate"] == 0.1
+    assert untuned.get_params()["min_child_samples"] == TUNED_PARAMS["min_child_samples"]
 
 
 def test_lgbm_warnings_survive_an_earlier_silent_model(capfd):
