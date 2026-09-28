@@ -6,21 +6,23 @@ Run under WSL from the repository root, after scripts/build_features.py:
 Everything is fit on train and scored on valid; the test set stays untouched until the
 models are frozen. LightGBM also uses valid for early stopping, so its valid scores are
 slightly optimistic. LightGBM runs on the parameters tuned 2026-09-29 (lgbm.py); the
-last row is the 23-feature model on LightGBM's defaults, as it ran before. On the data of
-2026-09-29 (the untuned rows are Andy's notebook numbers, reproduced exactly):
+last row is the full model on LightGBM's defaults, as it ran before. The purchase counts
+go in as *_per_day only (data.py, 2026-09-29): that left every LightGBM number and the
+four-feature logistic unchanged, and moved the full logistic's lift@10% from 4.1083. On the
+data of 2026-09-29 (the untuned rows are Andy's notebook numbers, reproduced exactly):
 
 | model                  | ROC-AUC |     AP | lift@10% | lift@20% |   Brier |
 | ---------------------- | ------: | -----: | -------: | -------: | ------: |
 | RFM                    |  0.6698 | 0.1854 |   4.1249 |   2.3889 |         |
 | logistic, 4 features   |  0.7438 | 0.2070 |   4.1454 |   2.7323 | 0.04381 |
 | LightGBM, 4 features   |  0.7445 | 0.2273 |   4.1135 |   2.7314 | 0.04307 |
-| logistic, 23 features  |  0.7444 | 0.2283 |   4.1083 |   2.8069 | 0.04314 |
-| LightGBM, 23 features  |  0.7657 | 0.2535 |   4.2920 |   2.8800 | 0.04232 |
+| logistic, 20 features  |  0.7444 | 0.2283 |   4.1104 |   2.8079 | 0.04314 |
+| LightGBM, 20 features  |  0.7657 | 0.2535 |   4.2920 |   2.8800 | 0.04232 |
 | LightGBM before tuning |  0.7654 | 0.2524 |   4.2820 |   2.8798 | 0.04236 |
 
-The parameters were tuned on 23 features; on 4 they change little (0.7446 before).
+The parameters were tuned on the full set; on 4 features they change little (0.7446 before).
 
-Then the 23-feature LightGBM is calibrated on valid (leakage.md 3.4). Each half of valid is
+Then the full LightGBM is calibrated on valid (leakage.md 3.4). Each half of valid is
 scored by a calibrator fit on the other half: Brier 0.042324 uncalibrated, 0.042286
 isotonic, 0.042281 Platt (before tuning: 0.042358, 0.042321, 0.042317; Platt was chosen
 then). The final Platt, fit on all of valid, has w = 1.0062 and c = -0.0978 and brings the
@@ -61,8 +63,14 @@ from pte.model.metrics import evaluate
 from pte.model.rfm import fit_spend_bins, rfm_score
 from pte.model.segments import evaluate_segments, pair_auc
 
-# The four columns RFM itself reads, as the models' small feature set.
-RFM_FEATURES = ["n_events", "n_purchases", "days_since_last_purchase", "total_spend"]
+# Andy's first four features, the columns RFM reads, with the purchase counts as *_per_day
+# for the outage (data.py); on train and valid that is the raw count / 14, same models.
+RFM_FEATURES = [
+    "n_events",
+    "n_purchases_per_day",
+    "days_since_last_purchase",
+    "total_spend_per_day",
+]
 METRICS = ["roc_auc", "ap", "lift@10%", "lift@20%", "brier"]
 # LightGBM's own defaults, which the models ran on until the 2026-09-29 tuning
 UNTUNED_PARAMS = {"num_leaves": 31, "min_child_samples": 20, "learning_rate": 0.1}
