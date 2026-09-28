@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 from sklearn.metrics import log_loss
 
-from pte.model.lgbm import train_lgbm
+from pte.model.lgbm import TUNED_PARAMS, train_lgbm
 from pte.model.tracking import EXPERIMENT, git_commit, log_lgbm_run, metric_name, setup_tracking
 
 
@@ -35,12 +35,13 @@ def test_setup_creates_the_store_and_experiment(tracking):
 
 def test_a_run_holds_the_grid_params_and_validation_metrics(tracking):
     model, y_valid, p_valid = small_lgbm(num_leaves=7, min_child_samples=40)
-    run_id = log_lgbm_run(model, y_valid, p_valid, run_name="leaves 7")
+    run_id = log_lgbm_run(model, y_valid, p_valid, run_name="leaves 7", tags={"features": "raw"})
     run = mlflow.get_run(run_id)
+    assert run.data.tags["features"] == "raw"
     assert run.info.run_name == "leaves 7"
     assert run.data.params["num_leaves"] == "7"
     assert run.data.params["min_child_samples"] == "40"
-    assert run.data.params["learning_rate"] == "0.1"
+    assert run.data.params["learning_rate"] == str(TUNED_PARAMS["learning_rate"])
     metrics = run.data.metrics
     assert metrics["log_loss"] == pytest.approx(log_loss(y_valid, p_valid))
     assert metrics["best_iteration"] == model.best_iteration_

@@ -22,7 +22,7 @@ from pte.model.metrics import evaluate
 
 EXPERIMENT = "p3-lgbm-tuning"
 # the LightGBM parameters the tuning grid touches, plus the ones that set its scale
-TUNED_PARAMS = ["num_leaves", "min_child_samples", "learning_rate", "n_estimators"]
+LOGGED_PARAMS = ["num_leaves", "min_child_samples", "learning_rate", "n_estimators"]
 
 
 def setup_tracking(mlflow_dir: str | Path, experiment: str = EXPERIMENT) -> None:
@@ -51,18 +51,26 @@ def metric_name(name: str) -> str:
 
 
 def log_lgbm_run(
-    model: lgb.LGBMClassifier, y_valid: ArrayLike, p_valid: ArrayLike, run_name: str | None = None
+    model: lgb.LGBMClassifier,
+    y_valid: ArrayLike,
+    p_valid: ArrayLike,
+    run_name: str | None = None,
+    tags: dict[str, str] | None = None,
 ) -> str:
     """Log one fitted LightGBM and its validation predictions as a run; returns the run id.
 
     Metrics are the validation log loss (the tuning criterion), best_iteration and evaluate()'s
-    ROC-AUC, AP, lift@10%, lift@20% and Brier.
+    ROC-AUC, AP, lift@10%, lift@20% and Brier. tags carry what the model cannot report about
+    itself, such as how the features were transformed: the 2026-09-29 grid ran on log1p
+    features, and that changed some runs.
     """
     params = model.get_params()
     metrics = {"log_loss": log_loss(y_valid, p_valid), "best_iteration": model.best_iteration_}
     metrics |= {metric_name(name): value for name, value in evaluate(y_valid, p_valid).items()}
     with mlflow.start_run(run_name=run_name) as run:
-        mlflow.log_params({name: params[name] for name in TUNED_PARAMS})
+        mlflow.log_params({name: params[name] for name in LOGGED_PARAMS})
         mlflow.log_metrics(metrics)
-        mlflow.set_tags({"git_commit": git_commit(), "n_features": model.n_features_in_})
+        mlflow.set_tags(
+            {"git_commit": git_commit(), "n_features": model.n_features_in_} | (tags or {})
+        )
     return run.info.run_id
