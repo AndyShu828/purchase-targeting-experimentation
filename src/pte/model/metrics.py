@@ -1,4 +1,4 @@
-"""Evaluation metrics sklearn does not provide: lift at the top frac of a ranking.
+"""Evaluation metrics: lift at the top frac of a ranking, and the P3 metric set.
 
 lift_at follows Andy's function from the P3 notebook (2026-09-28) step for step, with
 input checks added.
@@ -9,6 +9,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 from numpy.typing import ArrayLike
+from sklearn.metrics import average_precision_score, brier_score_loss, roc_auc_score
 
 
 def lift_at(score: ArrayLike, label: ArrayLike, frac: float) -> float:
@@ -46,3 +47,20 @@ def lift_at(score: ArrayLike, label: ArrayLike, frac: float) -> float:
     m = k - boundary["n_before"].item()
     pos_k = boundary["pos_before"].item() + m * boundary["pos"].item() / boundary["n"].item()
     return float((pos_k / k) / (groups["pos"].sum() / len(df)))
+
+
+def evaluate(label: ArrayLike, score: ArrayLike, probability: bool = True) -> dict[str, float]:
+    """ROC-AUC, AP, lift at 10% and 20%, and Brier when score is a probability.
+
+    A rule score such as RFM's 0-15 ranks users but is no probability, so it gets no
+    Brier. Everything else reads the ranking only.
+    """
+    result = {
+        "roc_auc": roc_auc_score(label, score),
+        "ap": average_precision_score(label, score),
+        "lift@10%": lift_at(score, label, 0.1),
+        "lift@20%": lift_at(score, label, 0.2),
+    }
+    if probability:
+        result["brier"] = brier_score_loss(label, score)
+    return {name: float(value) for name, value in result.items()}

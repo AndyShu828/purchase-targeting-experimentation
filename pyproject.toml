@@ -6,6 +6,8 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "duckdb>=1.5",
+    # eval_X / eval_y, which replace the deprecated eval_set in fit
+    "lightgbm>=4.7",
     "numpy>=2.0",
     "pandas>=3.0",
     "pyarrow>=19",

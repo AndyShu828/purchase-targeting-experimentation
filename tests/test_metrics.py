@@ -3,7 +3,7 @@ from itertools import permutations
 import pandas as pd
 import pytest
 
-from pte.model.metrics import lift_at
+from pte.model.metrics import evaluate, lift_at
 
 # The notebook's toy table: score 4 is a tie of 4 users holding 1 positive.
 SCORE = [5, 5, 4, 4, 4, 4, 2, 1]
@@ -76,3 +76,26 @@ def test_lift_at_rejects_empty_or_oversized_top(frac):
 def test_lift_at_rejects_nan_score():
     with pytest.raises(ValueError, match="NaN"):
         lift_at([1.0, float("nan"), 0.5], [1, 0, 0], 0.5)
+
+
+def test_evaluate_matches_sklearn_and_lift_at():
+    from sklearn.metrics import average_precision_score, brier_score_loss, roc_auc_score
+
+    prob = [0.9, 0.8, 0.4, 0.4, 0.4, 0.4, 0.3, 0.1, 0.05, 0.01]
+    # the second user is a negative, so lift@10% (3.33) and lift@20% (1.67) differ
+    label = [1, 0, 1, 0, 0, 0, 1, 0, 0, 0]
+    assert evaluate(label, prob) == {
+        "roc_auc": pytest.approx(roc_auc_score(label, prob)),
+        "ap": pytest.approx(average_precision_score(label, prob)),
+        "lift@10%": pytest.approx(lift_at(prob, label, 0.1)),
+        "lift@20%": pytest.approx(lift_at(prob, label, 0.2)),
+        "brier": pytest.approx(brier_score_loss(label, prob)),
+    }
+
+
+def test_evaluate_gives_a_rule_score_no_brier():
+    # RFM's 0-15 is a ranking, not a probability; brier_score_loss would reject it anyway
+    label = [1, 0, 1, 0, 0, 0, 0, 0, 0, 0]
+    result = evaluate(label, [15, 0, 3, 0, 0, 0, 0, 0, 0, 0], probability=False)
+    assert "brier" not in result
+    assert result["roc_auc"] == pytest.approx(1.0)
