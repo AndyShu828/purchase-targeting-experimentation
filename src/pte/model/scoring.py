@@ -26,10 +26,17 @@ N_DECILES = 10
 def assign_deciles(p: ArrayLike) -> np.ndarray:
     """1 for the highest-scoring tenth, N_DECILES for the lowest; equal scores, equal decile.
 
-    Raises ValueError when ties are so large that two decile edges coincide.
+    Raises ValueError when ties leave a decile empty. Large ties can do that without two
+    edges coinciding: in 20 scores with 0.12 three times, the edges at 50% and 60% are
+    0.095 and 0.12 and the one at 70% is 0.129, so the bin (0.12, 0.129] holds nobody
+    and the bin below it holds 4. qcut raises on its own only when edges coincide.
     """
     # qcut numbers its bins from the lowest scores up, 0 to N_DECILES - 1
-    return N_DECILES - pd.qcut(np.asarray(p, dtype=float), N_DECILES, labels=False)
+    deciles = N_DECILES - pd.qcut(np.asarray(p, dtype=float), N_DECILES, labels=False)
+    empty = sorted(set(range(1, N_DECILES + 1)) - set(deciles.tolist()))
+    if empty:
+        raise ValueError(f"ties leave decile(s) {empty} empty; too few distinct scores")
+    return deciles
 
 
 def score_users(model, features: pd.DataFrame, cutoff: date, version: str) -> pd.DataFrame:
