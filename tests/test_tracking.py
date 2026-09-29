@@ -7,7 +7,15 @@ import pytest
 from sklearn.metrics import log_loss
 
 from pte.model.lgbm import TUNED_PARAMS, train_lgbm
-from pte.model.tracking import EXPERIMENT, git_commit, log_lgbm_run, metric_name, setup_tracking
+from pte.model.tracking import (
+    BASELINE_EXPERIMENT,
+    EXPERIMENT,
+    git_commit,
+    log_baseline_run,
+    log_lgbm_run,
+    metric_name,
+    setup_tracking,
+)
 
 
 @pytest.fixture
@@ -81,3 +89,26 @@ def test_git_commit_marks_uncommitted_changes(monkeypatch, status, expected):
 def test_metric_names_drop_characters_mlflow_rejects():
     assert metric_name("lift@10%") == "lift_at_10pct"
     assert metric_name("roc_auc") == "roc_auc"
+
+
+def test_a_baseline_run_logs_what_its_score_supports(tmp_path):
+    setup_tracking(tmp_path / "mlflow", BASELINE_EXPERIMENT)
+    try:
+        rng = np.random.default_rng(0)
+        y = (rng.random(500) < 0.2).astype(int)
+        p = np.clip(0.2 + 0.3 * (y - 0.2) + rng.normal(0, 0.1, 500), 0.01, 0.99)
+        rule = np.round(p * 15)
+        prob_run = mlflow.get_run(log_baseline_run("logistic", y, p, params={"C": 1.0}))
+        rule_run = mlflow.get_run(log_baseline_run("RFM", y, rule, probability=False))
+        assert prob_run.data.metrics["log_loss"] == pytest.approx(log_loss(y, p))
+        assert prob_run.data.metrics["brier"] == pytest.approx(np.mean((p - y) ** 2))
+        assert prob_run.data.params == {"C": "1.0"}
+        # a rule score is no probability: ranking metrics only
+        assert set(rule_run.data.metrics) == {"roc_auc", "ap", "lift_at_10pct", "lift_at_20pct"}
+        assert rule_run.data.tags["git_commit"] == git_commit()
+        experiment = mlflow.get_experiment_by_name(BASELINE_EXPERIMENT)
+        assert {prob_run.info.experiment_id, rule_run.info.experiment_id} == {
+            experiment.experiment_id
+        }
+    finally:
+        mlflow.set_tracking_uri(None)
