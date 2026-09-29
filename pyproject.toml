@@ -8,6 +8,8 @@ dependencies = [
     "duckdb>=1.5",
     # eval_X / eval_y, which replace the deprecated eval_set in fit
     "lightgbm>=4.7",
+    # the P3 calibration curves (scripts/evaluate_test.py)
+    "matplotlib>=3.8",
     # tracking the P3 tuning runs (src/pte/model/tracking.py)
     "mlflow>=3.0",
     "numpy>=2.0",
