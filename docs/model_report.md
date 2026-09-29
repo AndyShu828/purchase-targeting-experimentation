@@ -41,7 +41,7 @@ model overstates the test-period purchase rate by about 60%, most in the top dec
   r = 0.9596 of the 14-day rate (10-15; 0.9384 and 0.9498 on 10-22 and 10-29), fixed before the
   test labels were read (`scripts/label_window_ratio.py`).
 - **20 features** from six groups (activity, purchase, intent, preference, trend, session;
-  `docs/features.md`). `main_category_id` and the three raw purchase counts are left out (§7).
+  `docs/features.md`). `main_category_id` and the three raw purchase counts are left out (§8).
 
 ## 2. Models
 
@@ -83,7 +83,7 @@ Brier changes.
 
 *(draft — Andy to confirm)* LightGBM beats RFM by 0.097 ROC-AUC, and most of that comes from
 users who have not bought in the window: RFM scores all of them 0 and cannot rank them
-(ROC-AUC 0.5000 in that segment, §6), while they are 57% of the future buyers. Against the
+(ROC-AUC 0.5000 in that segment, §7), while they are 57% of the future buyers. Against the
 logistic, LightGBM leads on ROC-AUC, AP and lift@20%, but the logistic's lift@10% is higher by
 0.027. Whether that gap is real is not tested (no confidence interval was pre-registered), so
 the report does not claim either model wins the top decile.
@@ -135,7 +135,7 @@ Business reading of the top six *(draft — Andy to confirm; Andy's reading, Cla
 - **`n_purchases_per_day`: having bought at all is what matters.** 0 → any purchase moves the
   logit by 1.34 (−0.18 → +1.15), twice the full range of recency; further purchases add less
   and less (to +1.58 at 3 purchases, +1.93 at 4 or more). Alone: 3.2% of non-buyers purchase, 11.2% of 1–2-purchase users,
-  21.5% of 4+. The same fact shows up in §6: new converters rank behind lapsed buyers.
+  21.5% of 4+. The same fact shows up in §7: new converters rank behind lapsed buyers.
 - **`avg_session_seconds`: an inverted U.** Sessions averaging 51–81 seconds score highest
   (+0.23), zero-second visits lowest (−0.21), and 630+ seconds falls back to +0.08. A possible
   reading is that very long sessions are users comparing and hesitating (not verified; session
@@ -195,12 +195,22 @@ What the numbers show:
 - **Brier is a weak check of the level**: an overall bias d contributes about d² to Brier. On valid
   d = 0.0049 is only 0.000024 of Brier while it is 10% of the mean, which is what P4 prices.
 
-*(draft — Andy to confirm)* **Answer: no, not directly.** Priced with `p × order value`, the test
-period's expected purchases would be overstated by about 60%, and by 75% in the top decile, which
-is where coupons go. Why the model overstates this much is not known. One candidate: the sale
-spike of 11/15–17 falls inside the test feature window, inflating carts and views (the test mean
-of `n_carts` is 4.2× the training mean) without a matching rise in purchases afterwards (not
-verified). What this means for P4 is in §9.
+**Answer: no, not directly.** The top decile, where coupons go, is overstated the most: its mean
+calibrated prediction, adjusted to the 13-day window, is 29.0% against 16.6% actual (1.75×).
+Across all test users the overstatement is 1.59× (7.05% against 4.44%). Priced with
+`p × order value`, expected purchases among the targeted users would be overstated by about
+three quarters. The ranking holds (the actual rate still falls from decile 1 to 10), so what
+fails is the level, not the order.
+
+The likely cause is the sale spike of 11/15–17 inside the test feature window: it inflated
+carts and views (the test mean of `n_carts` is 4.2× the training mean) without a matching rise
+in purchases afterwards. This is a hypothesis; it was not tested.
+
+What to do instead: P4 targets by share (top k%), which uses only the ranking, and takes the
+purchase level from its control group rather than from the model. In production, the
+calibration should be refit on the most recent window whose labels have matured, and the
+ratio of mean prediction to actual rate monitored (P5). Neither could be tested here: the
+most recent matured window before 11-18 overlaps the purchase outage, and the model is frozen.
 
 ## 7. Segments: the repurchase sub-problem
 
