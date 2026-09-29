@@ -81,12 +81,21 @@ Test set:
 Platt is increasing in p, so the four ranking metrics are identical with and without it; only
 Brier changes.
 
-*(draft — Andy to confirm)* LightGBM beats RFM by 0.097 ROC-AUC, and most of that comes from
-users who have not bought in the window: RFM scores all of them 0 and cannot rank them
-(ROC-AUC 0.5000 in that segment, §7), while they are 57% of the future buyers. Against the
-logistic, LightGBM leads on ROC-AUC, AP and lift@20%, but the logistic's lift@10% is higher by
-0.027. Whether that gap is real is not tested (no confidence interval was pre-registered), so
-the report does not claim either model wins the top decile.
+LightGBM beats RFM by 0.097 ROC-AUC, and most of that comes from users who have not bought in
+the window: RFM scores all of them 0 and cannot rank them (ROC-AUC 0.5000 in that segment, §7),
+while they are 57% of the future buyers.
+
+**Against the logistic, the answer depends on the part of the ranking.** LightGBM is ahead on
+ROC-AUC, AP and lift@20%. In the top decile the logistic is ahead: its lift@10% is higher by
+0.0267, and a paired bootstrap over test users (1000 rounds, added after the evaluation and
+outside the pre-registered checklist; `scripts/bootstrap_lift.py`) puts the gap at
+[+0.0077, +0.0461], clear of 0. The bootstrap resamples users from the test period, so it says
+the gap is not luck of the draw within this period; it cannot say whether the gap holds in
+another period. On valid, LightGBM led the top decile (4.2920 against 4.1104).
+
+The final model stays LightGBM: it was frozen before the test, and switching on a test result
+would make the test set a selection set. For P4, whose coupons go to the top decile, the gap is
+small next to the calibration problem (§6).
 
 ## 4. Question 2: decay from October to November
 
@@ -272,7 +281,8 @@ four kinds of (buyer, non-buyer) pairs; split by "bought":
 - **RFM uses raw purchase counts**, which the outage depresses in the test feature window. Its
   F and M inputs are lower on test than they would have been; whether that costs it ranking is
   not measured.
-- **The logistic vs LightGBM lift@10% gap is untested.**
+- **The logistic's top-decile lead is shown for one period only**: the bootstrap resamples
+  test users, not time, and no untouched period is left to check it on.
 - **r is approximate**: the test labels include Black Friday (11-29, about +30% purchases), so
   purchases are not spread over the days as in October.
 - **The 5.84 missing hours in the valid labels** make the valid rate, and so the Platt fit,
@@ -306,4 +316,5 @@ Under WSL from the repository root, `PTE_ENV=wsl`:
 | Register the final model | `scripts/register_model.py` |
 | 13-day label ratio | `scripts/label_window_ratio.py` |
 | Test evaluation (run once) | `scripts/evaluate_test.py` |
+| Bootstrap of the lift@10% gap | `scripts/bootstrap_lift.py` |
 | Batch scoring | `scripts/score_users.py --cutoff YYYY-MM-DD` |

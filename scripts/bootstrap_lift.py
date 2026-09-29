@@ -15,6 +15,11 @@ either way; it only puts an interval on a number already reported. Fixed before 
 - ROUNDS rounds, seed SEED, 95% interval from the 2.5th and 97.5th percentiles
 - reading: an interval containing 0 means no distinguishable gap in the top decile;
   otherwise the sign of the interval says which model is ahead
+
+Run 2026-09-30 (13 minutes): observed gap +0.0267; 1000 rounds, mean +0.0265, sd 0.0098,
+95% interval [+0.0077, +0.0461], gap <= 0 in 0.5% of rounds. So in the test period the
+logistic is ahead in the top decile. The final model stays LightGBM (Andy, 2026-09-30):
+switching on a test result would make the test set a selection set.
 """
 
 from __future__ import annotations
