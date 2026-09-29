@@ -13,6 +13,20 @@ Prints, for valid and test side by side: the four models' metrics, mean predicti
 the actual rate (the 14-day prediction also scaled by R for the 13-day test labels), the
 test set's own deciles, the segments and the pair split. Saves the calibration curves to
 docs/figures/calibration_test.png.
+
+Run once on 2026-09-30, after Andy computed every item in the notebook; all numbers agree:
+
+| test             | ROC-AUC |     AP | lift@10% | lift@20% |   Brier |
+| ---------------- | ------: | -----: | -------: | -------: | ------: |
+| RFM              |  0.6641 | 0.1370 |   3.6862 |   2.3896 |         |
+| logistic, 20     |  0.7516 | 0.1800 |   3.7673 |   2.7290 | 0.04200 |
+| LightGBM         |  0.7614 | 0.1923 |   3.7407 |   2.7848 | 0.04263 |
+| LightGBM + Platt |  0.7614 | 0.1923 |   3.7407 |   2.7848 | 0.04170 |
+
+Mean prediction 8.02% raw, 7.35% after Platt, 7.05% x R, against 4.44% actual: every
+decile and every segment is overestimated, decile 1 most (30.3% against 16.6%). The
+reverse pairs (a new buyer against a past buyer who does not come back) are ordered right
+10.7% of the time (valid 7.0%).
 """
 
 from __future__ import annotations
