@@ -104,9 +104,15 @@ How to read it:
   tuning, and Platt was fit on it; the logistic and RFM never saw valid.
 - **AP is not comparable across sets as it stands**: a random ranking scores about the positive
   rate, which fell from 5.00% to 4.44%.
-- *(draft — Andy to confirm)* Ranking held up: LightGBM loses 0.004 ROC-AUC. LightGBM's lead
-  over the logistic shrinks from 0.021 to 0.010 ROC-AUC; part of that may be LightGBM's
-  validation optimism, since only LightGBM's validation numbers carry it (not verified).
+
+**Ranking decays mostly at the top; the probability level decays far more.** LightGBM's lift@10%
+falls by 12.8% (4.2920 → 3.7407) while its ROC-AUC barely moves (0.7657 → 0.7614), so the loss
+is concentrated in the top decile, the users P4 targets. A possible reason is that past buyers,
+whose repurchase rate fell from 20.8% to 15.4% (§7), make up much of the top decile; this was
+not measured. LightGBM's lead over the logistic shrinks from 0.021 to 0.010 ROC-AUC; part of that
+may be LightGBM's validation optimism, since only LightGBM's validation numbers carry it (not
+verified). The largest change is not in the ranking at all: calibrated on valid, the model
+overstates the test-period purchase rate by 59% (§6).
 
 ## 5. Question 3: which features matter
 
@@ -235,8 +241,6 @@ four kinds of (buyer, non-buyer) pairs; split by "bought":
 | (not bought, not bought) | 51.0% | 67.3% → 68.7% |
 | **(not bought, bought)** | 6.2% | **7.0% → 10.7%** |
 
-*(draft — Andy to confirm)*
-
 - **Repurchase got harder on test.** Past buyers' purchase rate fell from 20.8% to 15.4%, and
   ranking within them fell the most (−0.047). One candidate: users who bought during the sale
   spike had just stocked up (not verified). After calibration on valid this segment was
@@ -245,7 +249,10 @@ four kinds of (buyer, non-buyer) pairs; split by "bought":
   0.6871, higher than on valid.
 - **New converters rank behind lapsed buyers.** A future buyer with no purchase in the window,
   against a past buyer who does not come back, is ordered right only 10.7% of the time, and
-  57% of test buyers are in the first group. Taking the top k% for coupons will mostly miss them.
+  57% of test buyers are in the first group. Taking the top k% will mostly miss them. For the
+  prediction this is an error; for couponing it is not necessarily a loss: these users bought
+  without a coupon, and a coupon only pays where it changes behaviour. Which users it changes
+  is P4's question, not this model's.
 
 ## 8. Limitations and what went wrong along the way
 
