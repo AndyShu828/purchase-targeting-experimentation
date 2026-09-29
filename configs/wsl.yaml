@@ -8,6 +8,7 @@ paths:
   sample_dir: /home/andy/pte-data/parquet/sample_1001_1007
   features_dir: /home/andy/pte-data/features
   mlflow_dir: /home/andy/pte-data/mlflow
+  scores_dir: /home/andy/pte-data/scores
 
 ingest:
   months: ["2019-Oct", "2019-Nov"]
