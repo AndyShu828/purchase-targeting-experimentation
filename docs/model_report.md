@@ -1,8 +1,8 @@
 # P3 model report: purchase propensity
 
-> **Draft.** Numbers, tables and the figure are final: every test-set number was computed by
-> Andy in a notebook and reproduced exactly by `scripts/evaluate_test.py`. Paragraphs marked
-> *(draft — Andy to confirm)* are interpretations still to be rewritten in Andy's words.
+> Every test-set number was computed by Andy in a notebook and reproduced exactly by
+> `scripts/evaluate_test.py`; the conclusions are Andy's. The test set was evaluated once, against
+> a checklist fixed before any test label was read (`docs/leakage.md` 5.1).
 
 **Question.** For every user active in the 14 days before a cutoff, what is the probability that
 they purchase in the 14 days after it? P4 uses these scores to choose who gets a coupon and to
@@ -13,12 +13,22 @@ price the decision, so the report answers four questions:
 3. Which features matter, and what do they mean for the business?
 4. Can the calibrated probabilities be used directly in expected-value calculations?
 
-The short answers *(draft — Andy to confirm)*: (1) LightGBM ranks best on ROC-AUC, AP and
-lift@20%, but its lead over logistic regression halves on the test set, and the logistic edges
-it on lift@10%; (2) ranking barely decays (ROC-AUC 0.7657 → 0.7614), top-decile lift drops by
-13%; (3) whether a user has bought before dominates, followed by browsing depth and recency;
-(4) **no** — even after calibration and after adjusting for the shorter test label window, the
-model overstates the test-period purchase rate by about 60%, most in the top decile.
+**Short answers.**
+
+1. **Baselines.** LightGBM beats RFM by 0.097 ROC-AUC (0.7614 against 0.6641), mostly on users
+   who have not bought, whom RFM cannot rank. Against logistic regression it depends on the part of
+   the ranking: LightGBM is ahead on ROC-AUC, AP and lift@20%, while in the top decile of the test
+   period the logistic is ahead (lift@10% +0.027, bootstrap interval clear of 0). The frozen
+   model stays LightGBM.
+2. **Decay.** Ranking barely moves overall (ROC-AUC 0.7657 → 0.7614) but drops at the top
+   (lift@10% −12.8%). The largest change is the probability level: calibrated on valid, the model
+   overstates the test-period purchase rate by 59%.
+3. **Features.** Whether a user has bought in the window dominates; after it come typical session
+   length (an inverted U), recency, category breadth and the number of active days. These are
+   prediction patterns, not coupon effects.
+4. **Calibrated probabilities: no, not directly.** The top decile is overstated 1.75×, all users
+   1.59×, while the ranking holds. P4 targets by share and takes the purchase level from its
+   control group.
 
 ## 1. Data and setup
 
@@ -145,12 +155,13 @@ root separates buyers from everyone. `main_category_conversion_rate` is split on
 moves each user little. Correlated features (the activity group) share credit, so a single
 feature's SHAP value is not its effect in isolation.
 
-Business reading of the top six *(draft — Andy to confirm; Andy's reading, Claude's wording)*:
+Business reading of the top six (Andy's reading, Claude's wording):
 
 - **`n_purchases_per_day`: having bought at all is what matters.** 0 → any purchase moves the
   logit by 1.34 (−0.18 → +1.15), twice the full range of recency; further purchases add less
-  and less (to +1.58 at 3 purchases, +1.93 at 4 or more). Alone: 3.2% of non-buyers purchase, 11.2% of 1–2-purchase users,
-  21.5% of 4+. The same fact shows up in §7: new converters rank behind lapsed buyers.
+  and less (to +1.58 at 3 purchases, +1.93 at 4 or more). Alone: 3.2% of non-buyers purchase,
+  11.2% of 1–2-purchase users, 21.5% of 4+. The same fact shows up in §7: new converters rank
+  behind lapsed buyers.
 - **`avg_session_seconds`: an inverted U.** Sessions averaging 51–81 seconds score highest
   (+0.23), zero-second visits lowest (−0.21), and 630+ seconds falls back to +0.08. A possible
   reading is that very long sessions are users comparing and hesitating (not verified; session
@@ -289,8 +300,6 @@ four kinds of (buyer, non-buyer) pairs; split by "bought":
   slightly low.
 
 ## 9. What P4 takes from this
-
-*(draft — Andy to confirm)*
 
 - **Target by share, not by threshold.** Ranking survives the shift to November; the probability
   level does not. The operating point is chosen on valid and carried to test as a top-k% share,
