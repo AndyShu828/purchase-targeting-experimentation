@@ -28,6 +28,14 @@ def test_ties_too_large_to_cut_raise():
         assign_deciles(np.r_[np.zeros(50), np.arange(50)])
 
 
+def test_a_decile_emptied_by_ties_raises():
+    # no two edges coincide here, so qcut itself is happy, but decile 4 would hold nobody
+    p = [0.30, 0.25, 0.22, 0.20, 0.18, 0.15, 0.12, 0.12, 0.12, 0.10]
+    p += [0.09, 0.08, 0.07, 0.06, 0.05, 0.04, 0.03, 0.03, 0.02, 0.01]
+    with pytest.raises(ValueError, match=r"decile\(s\) \[4\] empty"):
+        assign_deciles(p)
+
+
 class FakeModel:
     """Stands in for the pyfunc: scores by the column signal, returns a new index."""
 
