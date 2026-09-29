@@ -312,7 +312,10 @@ $$\Delta\,\mathrm{logit} = b_1\,(c_{\text{score}} - c_{\text{train}})$$
 
 - P3：阈值、超参、特征取舍只看验证集；测试集只在最后评估一次
 - **P3 的最终模型在 P4 分析 11/18–30 之前冻结。** P4 的观察期就是测试集的标签窗口；如果 P4 看完这段数据再回头改模型，
-  就是上面那个「挑 20 次」的翻版。冻结的范围（特征集、超参、阈值）和标志（比如 git tag）**待定，P3 结束时由 Andy 定**
+  就是上面那个「挑 20 次」的翻版。
+  - [x] **决定（Andy，2026-09-30）：冻结范围 = MLflow `pte-purchase-propensity` 第 1 版（LightGBM 20 列、145 棵，Platt w = 1.0062、c = −0.0978）、
+    特征定义（`src/pte/features/`、`data.py` 的 `model_features`）、截止日与人群定义；标志 = git tag `v0.3-p3`**。
+    P4 只读这个版本的分数，不改特征、参数或校准；调用 `scripts/score_users.py` 时加 `--version 1`，别依赖 `@champion`
 
 **另外两次只看了特征、没读标签的接触**（都没有据此做任何决定）：
 
