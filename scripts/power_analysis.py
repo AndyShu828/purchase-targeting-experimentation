@@ -1,4 +1,4 @@
-"""The coupon experiment's minimum detectable effect for each decile, from Andy's P4 notebook.
+"""The coupon experiment's MDE for each decile and its CUPED covariate, from Andy's P4 notebooks.
 
 Run under WSL from the repository root, after scripts/build_features.py:
     PTE_ENV=wsl python scripts/power_analysis.py
@@ -26,6 +26,20 @@ Run on 2026-10-03 (Andy's notebook gave the same table):
 |    all | 1,793,124 | 0.0500 | 2,305,679 | 1,152,839.5 | 0.080 | 1.6% |
 
 The primary test (decile 1) needs an injected effect of 0.48 pp for 80% power.
+
+Then the CUPED candidates' correlation with valid's label (section 6), over all users and
+within each decile. Run on 2026-10-04; the model score p has the largest rho squared and is
+the covariate for conversion:
+
+| candidate             |    rho |   rho2 |
+| --------------------- | -----: | -----: |
+| purchase_days_per_day | 0.2893 | 0.0837 |
+| n_purchases_per_day   | 0.2338 | 0.0547 |
+| total_spend_per_day   | 0.1625 | 0.0264 |
+| p                     | 0.3316 | 0.1099 |
+
+Within deciles p's rho is 0.334 in decile 1, 0.051 in decile 2 and under 0.02 below; the
+purchase candidates are constant (all 0) in decile 10, so their rho there is NaN.
 """
 
 from __future__ import annotations
@@ -37,6 +51,7 @@ import mlflow
 import pandas as pd
 
 from pte.config import load_config, resolve
+from pte.experiment.cuped import correlations_by_decile, covariate_correlations
 from pte.experiment.power import mde_table
 from pte.model.data import load_split
 from pte.model.registry import EXPERIMENT, MODEL_NAME
@@ -44,6 +59,7 @@ from pte.model.scoring import assign_deciles
 from pte.model.tracking import setup_tracking
 
 MODEL_VERSION = "1"  # frozen at v0.3-p3 (leakage.md section 5)
+CUPED_CANDIDATES = ["purchase_days_per_day", "n_purchases_per_day", "total_spend_per_day", "p"]
 
 
 def main(argv: Sequence[str] | None = None) -> None:
@@ -65,6 +81,11 @@ def main(argv: Sequence[str] | None = None) -> None:
     table = mde_table(valid, test)
     print(f"{MODEL_NAME} version {MODEL_VERSION}; two-sided alpha 0.05, power 80%, 50/50 split")
     print(table.round(6).to_string(index=False))
+
+    print("\nCUPED candidates against valid's label, all users")
+    print(covariate_correlations(valid, CUPED_CANDIDATES).round(6).to_string(index=False))
+    print("\nWithin each decile")
+    print(correlations_by_decile(valid, CUPED_CANDIDATES).round(6).to_string())
 
 
 if __name__ == "__main__":
