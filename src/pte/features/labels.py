@@ -61,3 +61,45 @@ def build_labels(
     return population.join(buyers, on="user_id", how="left").select(
         "user_id", F.coalesce(F.col("label"), F.lit(0)).alias("label")
     )
+
+
+# An exact duplicate has all nine columns equal (data_quality.md check 4); event_date is
+# derived from event_time, so it is left out.
+DUPLICATE_KEY = (
+    "event_type",
+    "product_id",
+    "category_id",
+    "category_code",
+    "brand",
+    "price",
+    "user_id",
+    "user_session",
+    "event_time",
+)
+
+
+def build_gmv(events: DataFrame, population: DataFrame, cutoff: date, label_days: int) -> DataFrame:
+    """gmv = the sum of price over the user's purchases in the label window, else 0.0.
+
+    The window is build_labels': [cutoff, cutoff + label_days), so gmv > 0 exactly where
+    label = 1 (no purchase has price 0, data_quality.md check 7). Exact-duplicate purchase
+    rows are dropped first (decided 2026-10-05, experiment_design.md section 5): a duplicate
+    is a whole row repeated, not a repeated price, as two items at the same price are two
+    purchases. Users with no purchase have no row after the GROUP BY, so the 0.0 comes after
+    the left join. Rounded to cents, as prices have two decimals: the sum of doubles depends on
+    the order Spark adds them in, and rounding makes reruns agree to the cent.
+    """
+    end = cutoff + timedelta(days=label_days)
+    spend = (
+        events.where(
+            (F.col("event_type") == "purchase")
+            & (F.col("event_date") >= F.lit(cutoff))
+            & (F.col("event_date") < F.lit(end))
+        )
+        .dropDuplicates(list(DUPLICATE_KEY))
+        .groupBy("user_id")
+        .agg(F.sum("price").alias("gmv"))
+    )
+    return population.join(spend, on="user_id", how="left").select(
+        "user_id", F.round(F.coalesce(F.col("gmv"), F.lit(0.0)), 2).alias("gmv")
+    )
