@@ -1,8 +1,9 @@
+import numpy as np
 import pandas as pd
 import pytest
 from scipy.stats import chisquare, norm
 
-from pte.experiment.srm import srm_table, srm_test
+from pte.experiment.srm import counterexample_drop, srm_table, srm_test
 
 
 def test_srm_test_matches_the_worked_exercises():
@@ -63,3 +64,28 @@ def test_srm_table_alarms_below_0001():
     table = srm_table(split)
     assert table["chi_sq"].tolist() == pytest.approx([160.0, 160.0])
     assert table["alarm"].tolist() == [None, True]
+
+
+def test_counterexample_drop_takes_treated_one_day_users_below_bucket_5():
+    # buckets under "srm-drop", from a separate sha256 run: 143 -> 0, 320 -> 4, 271 -> 5,
+    # 193 -> 99. Only rows meeting all three conditions are dropped
+    users = pd.DataFrame(
+        {
+            "user_id": [143, 320, 271, 193, 143, 320, 143, 320],
+            "arm": ["T", "T", "T", "T", "C", "C", "T", "T"],
+            "active_days": [1, 1, 1, 1, 1, 1, 2, 14],
+        },
+        index=[7, 3, 5, 1, 0, 2, 6, 4],
+    )
+    drop = counterexample_drop(users)
+    assert drop.index.equals(users.index)
+    assert drop.tolist() == [True, True, False, False, False, False, False, False]
+
+
+def test_counterexample_drop_is_about_5_percent_and_ignores_row_order():
+    # 20,000 treated one-day users: the count is Binomial(20,000, 0.05), mean 1,000, sd 30.8
+    users = pd.DataFrame({"user_id": np.arange(20_000), "arm": "T", "active_days": 1})
+    drop = counterexample_drop(users)
+    assert 900 < drop.sum() < 1100
+    shuffled = users.sample(frac=1, random_state=0)
+    assert counterexample_drop(shuffled).sort_index().equals(drop)

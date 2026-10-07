@@ -8,6 +8,11 @@ an outcome.
 chi_sq = sum over the arms of (O - E)^2 / E, with E = N x the arm's designed share. With two
 arms the counts' deviations are +d and -d, so chi_sq = d^2 / (N x share x (1 - share)) = z^2,
 and the chi-square p (right tail, df 1) is the two-sided z test's p.
+
+The counterexample (pre-registered 2026-10-07, commit e259fde) breaks the official split on
+purpose: a fault in a step only treatment has drops treated users active on one day, at bucket
+< 5 under its own salt. It shows the alarm going off and y0's diff, true value 0, pushed away
+from 0. A demonstration, not a step of the experiment.
 """
 
 from __future__ import annotations
@@ -15,8 +20,15 @@ from __future__ import annotations
 import pandas as pd
 from scipy.stats import chi2
 
+from pte.experiment.assignment import bucket
+
 SRM_ALPHA = 0.001
 TREATED_SHARE = 0.5
+
+# The counterexample's rule, written down before it was computed: 5 of 100 buckets is about 5%
+# of the treated low-activity users. Low activity is active_days 1, as decided 2026-09-29.
+DROP_SALT = "srm-drop"
+DROP_BUCKETS = 5
 
 
 def srm_test(n_t: int, n_c: int, treated_share: float = TREATED_SHARE) -> dict[str, float]:
@@ -55,3 +67,14 @@ def srm_table(split: pd.DataFrame, treated_share: float = TREATED_SHARE) -> pd.D
     table["alarm"] = None
     table.loc[table["decile"] == "all", "alarm"] = table["p"].iloc[-1] < SRM_ALPHA
     return table
+
+
+def counterexample_drop(users: pd.DataFrame) -> pd.Series:
+    """True for the users the simulated fault drops: arm "T", active_days 1 and bucket < 5.
+
+    users has one row per user with user_id, arm and active_days. The bucket is taken under
+    DROP_SALT from the user's id alone, so the same users are dropped in any row order. The
+    control arm is never touched: a loss in one arm only is what unbalances the counts.
+    """
+    buckets = users["user_id"].apply(lambda u: bucket(u, DROP_SALT))
+    return (buckets < DROP_BUCKETS) & (users["arm"] == "T") & (users["active_days"] == 1)
