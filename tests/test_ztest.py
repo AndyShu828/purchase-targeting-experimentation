@@ -40,3 +40,13 @@ def test_z_test_agrees_with_the_chi_square_on_the_2x2_table():
         assert res["z"] ** 2 == pytest.approx(chi_sq)
         assert res["p"] == pytest.approx(p)
         assert np.sign(res["z"]) == np.sign(res["diff"])
+
+
+def test_z_test_keeps_small_p_values():
+    # 1 - Phi(|z|) rounds to 0 once Phi(|z|) is within 1e-16 of 1 (decile 5 of the experiment, z 8.86)
+    for x_t, n_t, x_c, n_c in [(3_941, 115_354, 3_200, 115_213), (600, 2_000, 200, 2_000)]:
+        res = z_test(arm(x_t, n_t), arm(x_c, n_c))
+        table = [[x_t, n_t - x_t], [x_c, n_c - x_c]]
+        _, p, _, _ = chi2_contingency(table, correction=False)
+        assert p < 1e-16
+        assert res["p"] == pytest.approx(p, rel=1e-9, abs=0)  # approx allows 1e-12 by default

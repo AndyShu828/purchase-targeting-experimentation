@@ -11,6 +11,8 @@ come from the same outcomes table (injected_effects), the values section 5 recor
 Run on 2026-10-08. It agrees with Andy's notebook to the digit except err_in_se in the sixth
 digit, as the notebook took the truths rounded to six significant digits; and with a separate
 run that hashed the ids itself and tested conversion with chi-square on the 2 x 2 table.
+All users' conversion p was the exception: z_test returned 0 then (1 - Phi(|z|) rounds to 0),
+and 9.51e-36 is the chi-square's; since z_test takes norm.sf (2026-10-09) it returns 9.51e-36.
 
 | metric     | segment  |     diff | rel_diff |    ci_low |   ci_high |   stat |        p | err_se |
 | :--------- | :------- | -------: | -------: | --------: | --------: | -----: | -------: | -----: |

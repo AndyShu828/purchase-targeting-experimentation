@@ -6,6 +6,10 @@ error taken at the pooled rate, as under the null the two arms share one convers
     diff = r_t - r_c, r_pool = (x_t + x_c) / (n_t + n_c)
     z = diff / sqrt(r_pool (1 - r_pool) (1/n_t + 1/n_c)), p = 2 (1 - Phi(|z|))
 
+p is taken from the upper tail (norm.sf) rather than 1 - norm.cdf: once Phi(|z|) is within 1e-16
+of 1 the subtraction rounds to 0, which reported decile 5's p (z 8.86) and all users' (z 12.48)
+as 0 (fixed 2026-10-09, experiment_design.md section 3).
+
 The A/A simulation checks it on the test set's y0 before the primary test uses it.
 """
 
@@ -30,5 +34,5 @@ def z_test(y_t: ArrayLike, y_c: ArrayLike) -> dict[str, float]:
     r_pool = (x_t + x_c) / (n_t + n_c)
     se = np.sqrt(r_pool * (1 - r_pool) * (1 / n_t + 1 / n_c))
     z = diff / se
-    p = 2 * (1 - norm.cdf(abs(z)))
+    p = 2 * norm.sf(abs(z))
     return {"diff": float(diff), "z": float(z), "p": float(p)}
