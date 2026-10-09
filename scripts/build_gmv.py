@@ -1,11 +1,13 @@
-"""Write the test set's GMV in the label window, the coupon experiment's untreated spend.
+"""Write a split's GMV in its label window; on test, the coupon experiment's untreated spend.
 
 Run under WSL from the repository root, after scripts/build_features.py:
-    PTE_ENV=wsl python scripts/build_gmv.py
+    PTE_ENV=wsl python scripts/build_gmv.py [--split valid]
 
-Writes <features_dir>/test/gmv as Parquet: user_id and gmv, one row per test user, from
-build_gmv over 11-18 to 11-30 (experiment_design.md section 5). Checks that gmv > 0 exactly
-where the label is 1, as both read the same purchases in the same window.
+Writes <features_dir>/<split>/gmv as Parquet: user_id and gmv, one row per user of the split,
+from build_gmv over the split's label window (test: 11-18 to 11-30, experiment_design.md
+section 5). Checks that gmv > 0 exactly where the label is 1, as both read the same purchases
+in the same window. Valid's GMV is there to measure, before CUPED touches the test set, how
+well total_spend_per_day predicts GMV (experiment_design.md section 6).
 
 Run on 2026-10-05: 2,305,679 users, each with one label and one gmv; 102,290 buyers (gmv > 0),
 and gmv > 0 disagrees with label = 1 for none of them. Total 61,231,737.69 (price has no
@@ -13,6 +15,11 @@ currency unit, data_quality.md), 26.5569 per user. The window holds 212,347 purc
 test users, 212,346 after dropping exact duplicates. A DuckDB query of the same steps (filter,
 DISTINCT over the nine columns, sum per user) gives the same 102,290 buyers and total, and
 gmv differs from this table for no user; dropping duplicates before the filter gives the same.
+
+Valid, run on 2026-10-09: 1,793,124 users, 89,662 buyers, none disagreeing with the label;
+total 54,788,405.26, 30.5547 per user; 181,890 purchase rows in 11-01 to 11-14, 181,885 after
+dropping exact duplicates. The same DuckDB query gives the same buyers and total, and no user's
+gmv differs.
 """
 
 from __future__ import annotations
@@ -32,10 +39,11 @@ from pte.spark import build_session, read_events
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--env", help="configs/<env>.yaml (default $PTE_ENV, then dev)")
+    parser.add_argument("--split", choices=["valid", "test"], default="test")
     args = parser.parse_args(argv)
 
-    out_dir = resolve(load_config(args.env)["paths"]["features_dir"]) / "test"
-    cutoff, label_days = CUTOFFS["test"]
+    out_dir = resolve(load_config(args.env)["paths"]["features_dir"]) / args.split
+    cutoff, label_days = CUTOFFS[args.split]
     spark = build_session("pte-build-gmv")
     spark.sparkContext.setLogLevel("WARN")
     try:
@@ -68,7 +76,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     finally:
         spark.stop()
 
-    print(f"test cutoff={cutoff} label_days={label_days}")
+    print(f"{args.split} cutoff={cutoff} label_days={label_days}")
     print(f"users={n_users:,} with_label={n_labels:,} with_gmv={n_gmv:,}")
     print(f"buyers (gmv > 0)={buyers:,} total_gmv={total:,.2f} gmv_per_user={total / n_users:.4f}")
     print(f"gmv > 0 disagreeing with label = 1: {mismatched}")
