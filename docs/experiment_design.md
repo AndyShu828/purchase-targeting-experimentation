@@ -816,6 +816,10 @@ X 在实验前测得、不受券影响，随机分组下两臂 X 的期望相等
   - **第 8 步那一次的「转化 10 档均方根 0.61」：是运气**。重复实验里转化 10 档的 SD 第一次 0.940–1.020、复跑 0.945–1.003，都在 1 附近，SE 公式没有偏大；
     一次实验 10 个数碰巧集中，统计量又是看完数据才挑的。
   - 这些都只检验分组的随机性（第 5 节固定了「哪些人被翻」），在注入的效应和 GMV 抽样的假设下成立，是模拟的。
+  - Notebook：`~/p4_recovery.ipynb`（已加进 `make_backup.py`）。
+  - 代码：`src/pte/experiment/recovery.py`（`truths`、`split_and_observe`、`recovery_run`、`recovery_simulation`、`summarize`），测试见 `tests/test_recovery.py`；
+    `scripts/recovery_check.py --batch first / confirm` 复现两次，写出的两个文件与 notebook 的逐行（含行序）相同。
+    脚本把盐分给多个进程并行跑（每个盐的结果只取决于 outcomes 和盐本身，结果与单进程相同，测试里比过）：12 个进程每批 10–11 分钟，单进程 40–46 分钟。
 
 ## 9. 待定
 
