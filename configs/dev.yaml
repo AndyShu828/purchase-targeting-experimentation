@@ -8,6 +8,7 @@ paths:
   features_dir: data/features
   mlflow_dir: data/mlflow
   scores_dir: data/scores
+  monitoring_dir: data/monitoring
 
 ingest:
   months: ["2019-Oct", "2019-Nov"]
