@@ -72,3 +72,9 @@ Airflow 有两种按 cron 排运行的模式。2026-10-12 在 3.3.2 上实测（
 - [x] **决定（Andy，2026-10-12）：参照 = Valid（cutoff 11-01）**，切点从 Valid 的分数和特征上切，冻结存档。
   - 理由：模型没在 Valid 上训练（只用于 early stopping 和校准），是上线前最后看到的一批人，同一个冻结模型、同一套校准；分数已在 `scores/2019-11-01`。
   - 不用 Train（10-15）：模型在上面训练，分数是样本内的，人群不变也会和新数据不同。不用前一天：慢漂移每天只差一点，永远不报警。
+
+- [x] **决定（Andy，2026-10-12）：算 PSI 的变量 = 分数 `p` + SHAP 前 5 个特征**：`n_purchases_per_day`、`avg_session_seconds`、
+  `days_since_last_event`、`n_categories`、`active_days`（`model_report.md` 第 4 节，合计约占 SHAP 的 64%）。
+  - 理由：只看 `p` 时分数漂了说不出是哪个特征；24 个全看则检查次数多、误报多。
+  - 待处理：`n_purchases_per_day` 大多数人是 0，十分位切点会重复，写 PSI 函数时处理。
+  - 猜测（未验证）：11-14 到 11-16 的购买记录缺失落在特征窗口里时，`n_purchases_per_day` 的 PSI 可能跳起来。
