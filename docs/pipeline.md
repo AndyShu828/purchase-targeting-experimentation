@@ -85,3 +85,18 @@ Airflow 有两种按 cron 排运行的模式。2026-10-12 在 3.3.2 上实测（
     模拟 200 次平均 9.4e-06、99% 分位 2.1e-05（2026-10-12）。
   - 特征也能变红：特征漂了、分数没漂，也可能是数据管道的问题（如购买记录缺失）。
   - 在回放之前写定，和 P4 一样，不看结果再定判据。
+
+### 计算（`make_cuts` / `bin_shares` / `psi`，Andy 在 `~/p5_psi.ipynb` 写，2026-10-12）
+
+- `make_cuts(reference, n_bins=10)`：参照的 n_bins 等分点（`np.quantile`），去重。只对参照算一次，存档（相当于 fit）。
+  Valid 上去重后的箱数：`p` 10、`n_purchases_per_day` **2**（90.1% 是 0，切点全是 0）、`avg_session_seconds` 8、
+  `days_since_last_event` 10、`n_categories` 5、`active_days` 4。
+- `bin_shares(values, cuts)`：等于切点的值归左边那箱（`np.searchsorted(..., side="left")`），`np.bincount(..., minlength=len(cuts) + 1)` 保证空箱也有 0
+  （`groupby` / `value_counts` 只给出现过的箱，会少行）。对参照算出 e，对当天算出 a，用同一组切点（相当于 transform）。e 用实际数出来的比例，不假设每箱 10%。
+- `psi(expected, actual, floor=1e-4)`：两组比例先 `np.maximum(..., floor)` 托底，再 `sum (a - e) * ln(a / e)`。
+
+- [ ] **floor = 1e-4，Claude 定的，没有标准出处**（业界有 1e-4、1e-6，也有每箱人数加 0.5）。Andy 可改。
+  - 只在当天某箱几乎没人时起作用：参照每箱最少约 9.9%，碰不到；1e-4 在 200 万人里约 200 人。
+  - 一箱从 e = 0.1 变成 0 时，这一项 = `(floor - 0.1) * ln(floor / 0.1)`：floor 1e-2 → 0.207（**不到 0.25，漏报**）、1e-3 → 0.456、1e-4 → 0.690、1e-6 → 1.151。
+    要让空掉一箱单独就报警：`0.1 * ln(0.1 / floor) ≥ 0.25`，即 **floor ≤ 0.1 / e^2.5 ≈ 0.0082**；低于这个数，取多少只改变 PSI 的大小，不改变报不报警。
+  - 不托底时 numpy 只给 `RuntimeWarning`，PSI = inf；托底后 e = [0.5, 0.5]、a = [1.0, 0.0] 的 PSI = 4.6043。
