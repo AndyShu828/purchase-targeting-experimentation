@@ -93,10 +93,14 @@ Airflow 有两种按 cron 排运行的模式。2026-10-12 在 3.3.2 上实测（
   `days_since_last_event` 10、`n_categories` 5、`active_days` 4。
 - `bin_shares(values, cuts)`：等于切点的值归左边那箱（`np.searchsorted(..., side="left")`），`np.bincount(..., minlength=len(cuts) + 1)` 保证空箱也有 0
   （`groupby` / `value_counts` 只给出现过的箱，会少行）。对参照算出 e，对当天算出 a，用同一组切点（相当于 transform）。e 用实际数出来的比例，不假设每箱 10%。
-- `psi(expected, actual, floor=1e-4)`：两组比例先 `np.maximum(..., floor)` 托底，再 `sum (a - e) * ln(a / e)`。
+- `psi(expected, actual, floor=1e-6)`：两组比例先 `np.maximum(..., floor)` 托底，再 `sum (a - e) * ln(a / e)`。
 
-- [x] **决定（Andy，2026-10-12）：floor = 1e-4**。值是 Claude 提的，没有标准出处（业界有 1e-4、1e-6，也有每箱人数加 0.5）。
-  - 只在当天某箱几乎没人时起作用：参照每箱最少约 9.9%，碰不到；1e-4 在 200 万人里约 200 人。
-  - 一箱从 e = 0.1 变成 0 时，这一项 = `(floor - 0.1) * ln(floor / 0.1)`：floor 1e-2 → 0.207（**不到 0.25，漏报**）、1e-3 → 0.456、1e-4 → 0.690、1e-6 → 1.151。
-    要让空掉一箱单独就报警：`0.1 * ln(0.1 / floor) ≥ 0.25`，即 **floor ≤ 0.1 / e^2.5 ≈ 0.0082**；低于这个数，取多少只改变 PSI 的大小，不改变报不报警。
-  - 不托底时 numpy 只给 `RuntimeWarning`，PSI = inf；托底后 e = [0.5, 0.5]、a = [1.0, 0.0] 的 PSI = 4.6043。
+- [x] ~~**决定（Andy，2026-10-12）：floor = 1e-4**~~ → **改为 1e-6（Andy，2026-10-12，同日）**。值是 Claude 提的，没有标准出处（业界有 1e-4、1e-6，也有每箱人数加 0.5）。
+  - **更正（2026-10-12）**：原推导用「参照每箱最少约 9.9%、按 e = 0.1 算」，Claude 写错了。用 Valid 实测，去重后的箱大小不等，
+    最小的是 `n_categories` = 4 那一箱 **e = 0.0455**（`days_since_last_event` 最小 0.0550、`active_days` 0.0741）。1e-4 是按错的数字定的，重算后 Andy 改成 1e-6。
+  - 只在当天某箱几乎没人时起作用：参照最小的箱 4.55%，碰不到；1e-6 在 200 万人里约 2 人。
+  - 一箱从 e 变成 0 时，这一项 = `(floor - e) * ln(floor / e)`，要单独就报警需 `e * ln(e / floor) ≥ 0.25`，即 **floor ≤ e * exp(-0.25 / e)**：
+    - e = 0.1：上限 0.0082；floor 1e-2 → 0.207（**漏报**）、1e-4 → 0.690、1e-6 → 1.151
+    - **e = 0.0455（实际最小）：上限 0.00019**；floor 1e-4 → 0.278（刚过 0.25）、**1e-6 → 0.488**
+    低于上限时，floor 取多少只改变 PSI 的大小，不改变报不报警。换参照或加变量后出现更小的箱，要重算这个上限。
+  - 不托底时 numpy 只给 `RuntimeWarning`，PSI = inf；e = [0.5, 0.5]、a = [1.0, 0.0] 托底后的 PSI：1e-4 → 4.6043、1e-6 → 6.9077。
