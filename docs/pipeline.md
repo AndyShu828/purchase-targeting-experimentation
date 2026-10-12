@@ -41,3 +41,18 @@ Airflow 有两种按 cron 排运行的模式。2026-10-12 在 3.3.2 上实测（
 - `data_interval_end` 在两种模式下都等于「哪天早上跑」，`logical_date` 换到模式 B 会早一天：不报错，打的分整体晚一天。
 - 意思也对得上：cutoff 是特征的不含上界（`event_date < cutoff`），`data_interval_end` 是「这一刻之前的数据齐了」，也是不含上界。
 - Paidy 用哪个编排工具、哪个版本查不到（JD 只写「like Prefect, Airflow, Argo」），取 `data_interval_end` 在 2 和 3 上意思不变。
+
+## 4. `daily_score` 的 task
+
+| task | 输入 | 输出 |
+| --- | --- | --- |
+| `score` | cutoff、事件 Parquet、冻结的模型 | `scores/<cutoff>/scores.parquet` 和 `features/` |
+| `psi` | 当天的分数和特征、参照分布 | 每个变量一行 PSI |
+| `alert` | PSI 表 | 超阈值则 task 失败（网格里变红） |
+
+- [x] **决定（Andy，2026-10-12）：`score` 用 `BashOperator` 调现有的 `scripts/score_users.py`**，
+  命令 `PTE_ENV=wsl ~/.venvs/pte/bin/python scripts/score_users.py --cutoff {{ data_interval_end | ds }}`。
+  - 理由：脚本已测过，覆盖写入（特征 `mode("overwrite")`、分数直接覆盖），同一 cutoff 重跑结果相同；
+    `pte` 的 venv 有 Spark 和 LightGBM，Airflow 的 venv 没有，分开装是为了避开依赖冲突。
+  - 2026-10-12 实测：`BashOperator` 里 `{{ data_interval_end | ds }}` 渲染成 `2019-11-28`，`~/.venvs/pte/bin/python` 能 `import pyspark, lightgbm, pte`。
+  - 回放范围：`check_cutoff` 接受 10-15 到 12-01（数据 10-01 起、窗口 14 天；12-01 是数据结束的次日早上），共 48 次。
