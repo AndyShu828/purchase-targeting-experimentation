@@ -48,7 +48,7 @@ Airflow 有两种按 cron 排运行的模式。2026-10-12 在 3.3.2 上实测（
 | --- | --- | --- |
 | `score` | cutoff、事件 Parquet、冻结的模型 | `scores/<cutoff>/scores.parquet` 和 `features/` |
 | `psi` | 当天的分数和特征、`monitoring/psi_reference.json` | `monitoring/psi/<cutoff>.parquet`：每个变量一行（`cutoff, variable, psi, n_users`） |
-| `alert` | PSI 表 | 超阈值则 task 失败（网格里变红） |
+| `alert` | `monitoring/psi/<cutoff>.parquet` | `scripts/psi_alert.py`：任一 PSI ≥ 0.25 则 `raise`，task 失败（网格里变红）；0.1–0.25 的 `print` 进日志 |
 
 - [x] **决定（Andy，2026-10-12）：`score` 用 `BashOperator` 调现有的 `scripts/score_users.py`**，
   命令 `PTE_ENV=wsl ~/.venvs/pte/bin/python scripts/score_users.py --cutoff {{ data_interval_end | ds }}`。
