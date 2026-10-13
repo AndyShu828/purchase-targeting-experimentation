@@ -11,6 +11,8 @@ day's. Both are floored first, because a bin nobody falls into gives ln(0).
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 from numpy.typing import ArrayLike
@@ -24,11 +26,35 @@ VARIABLES = [
     "active_days",
 ]
 N_BINS = 10
+# Valid: the model never trained on it, and it is the last population seen before launch
+REFERENCE_CUTOFF = "2019-11-01"
+REFERENCE_FILE = "psi_reference.json"
 # 1e-6, not 1e-4 (both decided 2026-10-12): Valid's smallest bin is 4.55% (n_categories = 4),
 # and 1e-4 only covers a bin emptying down to 4.16%; 1e-6 covers it down to 2.47%.
 FLOOR = 1e-6
 # Fixed before the replay (pipeline.md section 5): any variable at or above it fails alert.
 ALERT_PSI = 0.25
+
+
+def load_day(
+    scores_path: Path, features_path: Path, variables: list[str] = VARIABLES
+) -> pd.DataFrame:
+    """One row per user: user_id and the variables, p from the scores and the rest from features.
+
+    score_users scores every row of the feature table, so both sides hold the same users; a
+    count that differs means the two files are from different runs, and an inner join would
+    drop the difference without a word.
+    """
+    scores = pd.read_parquet(scores_path, columns=["user_id", "p"])
+    features = pd.read_parquet(
+        features_path, columns=["user_id", *[v for v in variables if v != "p"]]
+    )
+    day = scores.merge(features, on="user_id", how="inner", validate="one_to_one")
+    if not len(scores) == len(features) == len(day):
+        raise ValueError(
+            f"{len(scores):,} scores and {len(features):,} feature rows share {len(day):,} users"
+        )
+    return day[["user_id", *variables]]
 
 
 def make_cuts(reference: ArrayLike, n_bins: int = N_BINS) -> np.ndarray:

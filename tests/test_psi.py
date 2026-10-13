@@ -8,6 +8,7 @@ from pte.monitoring.psi import (
     bin_shares,
     build_reference,
     check_floor,
+    load_day,
     make_cuts,
     psi,
     psi_table,
@@ -82,3 +83,21 @@ def test_psi_table_cuts_the_day_on_the_frozen_cuts():
     reference = {"x": {"cuts": [0.0, 1.0], "expected": [0.6, 0.2, 0.2]}}
     table = psi_table(pd.DataFrame({"x": TOY_TODAY}), reference)
     assert table["psi"].iloc[0] == pytest.approx(psi([0.6, 0.2, 0.2], [0.3, 0.3, 0.4]))
+
+
+def test_load_day_joins_scores_and_features_on_user_id(tmp_path):
+    pd.DataFrame({"user_id": [2, 1], "p": [0.2, 0.1], "decile": [1, 2]}).to_parquet(
+        tmp_path / "scores.parquet"
+    )
+    pd.DataFrame({"user_id": [1, 2], "x": [10, 20]}).to_parquet(tmp_path / "features.parquet")
+    day = load_day(tmp_path / "scores.parquet", tmp_path / "features.parquet", ["p", "x"])
+    assert day.columns.tolist() == ["user_id", "p", "x"]
+    assert day.set_index("user_id").loc[2].tolist() == [0.2, 20]
+
+
+def test_load_day_refuses_files_with_different_users(tmp_path):
+    # an inner join would quietly keep users 1 and 2 and drop 3
+    pd.DataFrame({"user_id": [1, 2, 3], "p": [0.1, 0.2, 0.3]}).to_parquet(tmp_path / "s.parquet")
+    pd.DataFrame({"user_id": [1, 2], "x": [10, 20]}).to_parquet(tmp_path / "f.parquet")
+    with pytest.raises(ValueError, match="3 scores and 2 feature rows share 2 users"):
+        load_day(tmp_path / "s.parquet", tmp_path / "f.parquet", ["p", "x"])
