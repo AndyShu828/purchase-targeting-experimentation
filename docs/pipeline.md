@@ -94,6 +94,12 @@ Airflow 有两种按 cron 排运行的模式。2026-10-12 在 3.3.2 上实测（
 - `bin_shares(values, cuts)`：等于切点的值归左边那箱（`np.searchsorted(..., side="left")`），`np.bincount(..., minlength=len(cuts) + 1)` 保证空箱也有 0
   （`groupby` / `value_counts` 只给出现过的箱，会少行）。对参照算出 e，对当天算出 a，用同一组切点（相当于 transform）。e 用实际数出来的比例，不假设每箱 10%。
 - `psi(expected, actual, floor=1e-6)`：两组比例先 `np.maximum(..., floor)` 托底，再 `sum (a - e) * ln(a / e)`。
+- [x] **决定（Andy，2026-10-13）：6 个变量里出现 NaN → `psi` task 报错（`load_day` 里 `raise`），不报警、不单算一箱**。
+  - 理由：`days_since_last_event`、`avg_session_seconds` 只在「窗口内无事件」时为 NULL，另外四个不会是 NULL；打分人群都是窗口内有事件的人，
+    所以 NaN 是数据坏了，不是漂移。Valid 和 12-01 实测 6 个变量都没有 NaN（2026-10-13）。
+  - 不处理时：`np.searchsorted` 把 NaN 排在所有切点之后，放进最高那一箱，读起来像「整体往上漂」，NaN 少时网格是绿的。
+  - 不单算一箱：参照里这一箱 e = 0，单靠它报警需 `a * ln(a / 1e-6) ≥ 0.25`，即 NaN 约占 2.5%，更少时又是静默漏报。
+  - 报错让两种红分开：`psi` 红 = 数据坏了，`alert` 红 = 分布漂了。
 
 - [x] ~~**决定（Andy，2026-10-12）：floor = 1e-4**~~ → **改为 1e-6（Andy，2026-10-12，同日）**。值是 Claude 提的，没有标准出处（业界有 1e-4、1e-6，也有每箱人数加 0.5）。
   - **更正（2026-10-12）**：原推导用「参照每箱最少约 9.9%、按 e = 0.1 算」，Claude 写错了。用 Valid 实测，去重后的箱大小不等，

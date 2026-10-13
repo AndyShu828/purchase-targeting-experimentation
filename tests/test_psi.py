@@ -101,3 +101,12 @@ def test_load_day_refuses_files_with_different_users(tmp_path):
     pd.DataFrame({"user_id": [1, 2], "x": [10, 20]}).to_parquet(tmp_path / "f.parquet")
     with pytest.raises(ValueError, match="3 scores and 2 feature rows share 2 users"):
         load_day(tmp_path / "s.parquet", tmp_path / "f.parquet", ["p", "x"])
+
+
+def test_load_day_refuses_a_nan(tmp_path):
+    # searchsorted would put the NaN in the highest bin, past every cut
+    assert np.searchsorted([0.0, 1.0], [np.nan]).tolist() == [2]
+    pd.DataFrame({"user_id": [1, 2], "p": [0.1, 0.2]}).to_parquet(tmp_path / "s.parquet")
+    pd.DataFrame({"user_id": [1, 2], "x": [10, np.nan]}).to_parquet(tmp_path / "f.parquet")
+    with pytest.raises(ValueError, match=r"NaN in \{'x': 1\}"):
+        load_day(tmp_path / "s.parquet", tmp_path / "f.parquet", ["p", "x"])

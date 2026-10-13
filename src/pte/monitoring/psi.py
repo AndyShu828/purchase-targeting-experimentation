@@ -44,6 +44,11 @@ def load_day(
     score_users scores every row of the feature table, so both sides hold the same users; a
     count that differs means the two files are from different runs, and an inner join would
     drop the difference without a word.
+
+    A NaN raises too (decided 2026-10-13). These variables are NULL only for a user with no
+    event in the window, and every scored user has one, so a NaN means broken data, not
+    drift. searchsorted would put it past the last cut, in the highest bin, and read it as
+    a shift up; the psi task failing keeps "data broken" apart from alert's "drifted".
     """
     scores = pd.read_parquet(scores_path, columns=["user_id", "p"])
     features = pd.read_parquet(
@@ -54,6 +59,9 @@ def load_day(
         raise ValueError(
             f"{len(scores):,} scores and {len(features):,} feature rows share {len(day):,} users"
         )
+    n_nan = day[variables].isna().sum()
+    if n_nan.any():
+        raise ValueError(f"NaN in {n_nan[n_nan > 0].to_dict()}")
     return day[["user_id", *variables]]
 
 
