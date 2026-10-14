@@ -16,6 +16,11 @@ Usage:
     python scripts/run_sql.py sql/analysis/data_quality.sql
     python scripts/run_sql.py sql/analysis/funnel.sql --full --limit 20
     python scripts/run_sql.py -e "SELECT event_type, count(*) AS n FROM events GROUP BY 1"
+    python scripts/run_sql.py sql/analysis/session_funnel.sql --full --out session_funnel.parquet
+
+--out keeps the result for the P6 dashboard (docs/dashboard.md section 3): DuckDB writes the
+Parquet itself, so dates stay dates and numbers stay numbers on the way to BigQuery, which a CSV
+would not promise. The query runs once; the printed rows are read back from the same result.
 """
 
 from __future__ import annotations
@@ -61,6 +66,28 @@ def format_table(columns: Sequence[str], rows: Sequence[tuple[Any, ...]]) -> str
     return "\n".join(lines)
 
 
+def save_parquet(
+    con: duckdb.DuckDBPyConnection, result: duckdb.DuckDBPyRelation, path: Path
+) -> duckdb.DuckDBPyRelation:
+    """Store the result once, copy it to a Parquet file and return the stored table.
+
+    A relation is a query, not its rows: printing it and then writing it would run the query
+    twice, which on the full data is the slow part.
+
+    HUGEINT columns are cast to BIGINT first. DuckDB sums integers into a 128-bit HUGEINT, which
+    Parquet can only hold as DOUBLE, so session_funnel's counts left as floats; BigQuery's SUM of
+    INT64 is INT64. The cast fails loudly on overflow rather than wrapping.
+    """
+    columns = [
+        f'CAST("{name}" AS BIGINT) AS "{name}"' if str(kind) == "HUGEINT" else f'"{name}"'
+        for name, kind in zip(result.columns, result.types, strict=True)
+    ]
+    result.project(", ".join(columns)).create("result")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    con.execute(f"COPY result TO '{path.as_posix()}' (FORMAT parquet)")
+    return con.table("result")
+
+
 def read_sql(args: argparse.Namespace) -> tuple[str, str]:
     """Return (label, statement) from either --execute or the .sql file argument."""
     if args.execute is not None:
@@ -82,6 +109,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--full", action="store_true", help="read all 61 partitions instead of the dev sample"
     )
     parser.add_argument("--limit", type=int, default=50, help="rows to print (default: 50)")
+    parser.add_argument("--out", type=Path, default=None, help="also write the result to Parquet")
     parser.add_argument("--env", default=None, help="config name under configs/ (default: dev)")
     return parser
 
@@ -108,6 +136,10 @@ def main(argv: Sequence[str] | None = None) -> None:
     print(f"{label}  events -> {source_dir}")
     start = time.perf_counter()
     result = con.sql(text)
+    if args.out is not None:
+        if result is None:
+            raise SystemExit("--out needs a statement that returns rows")
+        result = save_parquet(con, result, args.out)
     rows = result.fetchall() if result is not None else []
     elapsed = time.perf_counter() - start
 

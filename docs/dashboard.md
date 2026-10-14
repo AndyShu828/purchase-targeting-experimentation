@@ -16,6 +16,8 @@
      依赖 Paidy 业务研究：券的设定 2026-10-14 已按 Paidy 的实际产品更正（`experiment_design.md` 第 7 节）。
   6. **`docs/event_mapping.md`**（可选，最先砍）：换成 BNPL App 的事件时，特征和标签怎么对应。理由：JD「clickstream data, app activity data」。
 - 决定不做：`docs/` 全量英文化。计划原文只要求 README 英文为主。
+- 决定不做（Andy，2026-10-14）：Tableau 版 Dashboard。JD 的「a BI tool like Looker, Tableau」紧接着说 Looker 是主要工具；概念与 Looker Studio 相同，
+  加的主要是界面操作。Tableau Public 只读抽取文件 / Google Sheets，官方 FAQ 的连接器里没有 BigQuery，要多搭一条导出路径。以后投 Tableau / Power BI 多的公司时再拿第 ① 页做一版（约 2–3h）。
 - 仓库之外（计划同周）：Paidy 业务研究的其余部分（日本 BNPL 市场）、自我介绍中英日、5 分钟项目讲解、至少两轮模拟面试、简历条目。
 
 ## 2. 约束
@@ -31,3 +33,33 @@
     两条 SQL 的 dry run 实测通过（`session_funnel` 2.21 GB、`weekly_cohort_retention` 0.24 GB），但除零是运行期错误，dry run 查不出。
   - 不用 Looker Studio 的「上传文件」入口：仓库里没有记录，表过期后无法重建。上传 Parquet 而不是 CSV，保住日期和数字列的类型。
   - Looker Studio 只连小的结果表，不对原始表写自定义查询（每次刷新都要重扫）—— 和 Looker 的 PDT（持久派生表）是同一个道理。
+
+## 4. 第 ① 页：业务漏斗与留存
+
+- [x] **决定（Andy，2026-10-14）：漏斗的头号数字 = loose 购买率 5.98%（`session_funnel` 的 `loose_pct`），回答「有多少会话最后买了」**。
+  - 不用 strict 的 3.99%：它丢掉 467,503 个购买会话（1,405,954 − 938,451，占 33.25%），其中「有浏览、无加购」占 98%（`session_funnel_purchase_decomposition.sql`）。
+    strict 回答的是「卡在哪一步」（加购 → 购买 40.45%），不是购买率。
+- [x] **决定（Andy，2026-10-14）：留存放两样 —— k = 1 的一个数 + 整张 cohort × k 热力图**。
+  - k = 1：9 个 cohort 里 8 个有这一格（k = 8 只有 1 个）；1–2 周和项目「14 天内购买」同一尺度。
+  - 热力图：单个数藏住两件事 —— 11-11 那周的对角线（日历效应，11-04 cohort 的 k = 1 是 14.67，被抬高）、11-11 cohort 的 k = 1 只有 7.17（全表最低）。
+    `weekly_cohort_retention.sql` 是长表，透视交给 Looker Studio（文件头原本就这么写）。
+- [x] **决定（Andy，2026-10-14）：k = 1 的数字 = 合并算 12.78%**（8 个 cohort 的 k = 1 回购人数 ÷ cohort 人数 = 82,548 / 645,800），理由：各 cohort 人数不同。
+  - 不用简单平均 13.29%（每个 cohort 一票，146,154 人的 11-11 和 57,783 人的 11-18 同权；11-25 没有 k = 1，不在这 8 个里）；不用最新 cohort 11-18 的 11.36%（被 11-14 起 38.4 小时的埋点故障抬高）。
+  - 副作用：人群结构会动它 —— 11-11 cohort 人多、k = 1 只有 7.17，把合并数往下拉；所以旁边放热力图。
+  - k 是日历周的差，不是天数：k = 1 的实际间隔是 1–13 天，周末首购的人窗口贴着首购（回购最密的几天），定义上偏高。
+    11-11 cohort 76.5% 是周六、周日首购，定义在帮他们，k = 1 仍最低（`weekly_cohort_first_purchase_day.sql`：周一到周四 8.16–9.59，周六 7.12、周日 6.43）。
+    热力图加注：「k = calendar weeks since the first-purchase week (Mon–Sun); k = 1 means bought again the following week, 1–13 days later.」
+- [x] **第 ① 页完成（Andy 在 Looker Studio 搭，2026-10-14）**：截图 `docs/figures/p6_page1_funnel_retention.png`。报告 `PTE Dashboard`，在 Andy 的账号下，未公开分享。
+  三个验收数字都对上（全量结果、`sql/analysis/` 文件头的回归值）：
+
+  | 元素 | Looker Studio 设置 | 等价 SQL | 显示 |
+  | --- | --- | --- | --- |
+  | 记分卡 `Session purchase rate (%)` | `loose_pct`，筛选 `step = purchase` | `SELECT SUM(loose_pct) FROM session_funnel WHERE step = 'purchase'` | 5.98 |
+  | 记分卡 `Bought again next week (k = 1)` | 计算字段 `k1_retention_pooled` = `SUM(retained_users) / SUM(cohort_size)`，类型 Percent，筛选 `purchase_gap_k = 1` | `SELECT SUM(retained_users) / SUM(cohort_size) FROM weekly_cohort_retention WHERE purchase_gap_k = 1` | 12.78% |
+  | 热力图 | 行 = `first_purchase_week` + `cohort_size`，列 = `purchase_gap_k`，格 = `SUM(retention_pct)`（Number，不是 Percent），排除 k = 0 | `... WHERE purchase_gap_k >= 1 GROUP BY week, cohort_size, k`，再透视 | 09-30 的 k = 1 是 20.33 |
+
+  - **排除 k = 0**：k = 0 按定义恒为 100，把色阶撑到 5.26–100，有信息的格子只占色带的 16%（(20.33 − 5.26) / (100 − 5.26)），11-11 对角线看不出来；排除后色阶 5.26–20.33。
+    副作用：11-25 cohort 只有 k = 0 一行，`WHERE` 在 `GROUP BY` 前删光它的行，整行消失（不是「-」）—— 它本来就看不到留存，可以接受。
+  - **踩过、页面上不报错的坑**：① 百分比默认 SUM（未筛选时记分卡显示 215.83 = 四步比例相加）；② 热力图的指标 Display name 是 `retention_pct`、Source field 却是 Record Count
+    （每格 1，再加 Running sum 变成 1–45）—— 核对指标先看 Source field；③ 点过表头留下交互状态，整张表变淡，左上角 ↶ 复原。
+  - 计算字段写在嵌入式数据源里（Scope: Embedded），只这份报告能用 —— 「指标定义一次」的语义层，Looker 用 LookML 的 `measure` 做（第 1 节第 4 项）。
