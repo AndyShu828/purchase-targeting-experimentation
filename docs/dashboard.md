@@ -49,3 +49,17 @@
   - k 是日历周的差，不是天数：k = 1 的实际间隔是 1–13 天，周末首购的人窗口贴着首购（回购最密的几天），定义上偏高。
     11-11 cohort 76.5% 是周六、周日首购，定义在帮他们，k = 1 仍最低（`weekly_cohort_first_purchase_day.sql`：周一到周四 8.16–9.59，周六 7.12、周日 6.43）。
     热力图加注：「k = calendar weeks since the first-purchase week (Mon–Sun); k = 1 means bought again the following week, 1–13 days later.」
+- [x] **第 ① 页完成（Andy 在 Looker Studio 搭，2026-10-14）**：截图 `docs/figures/p6_page1_funnel_retention.png`。报告 `PTE Dashboard`，在 Andy 的账号下，未公开分享。
+  三个验收数字都对上（全量结果、`sql/analysis/` 文件头的回归值）：
+
+  | 元素 | Looker Studio 设置 | 等价 SQL | 显示 |
+  | --- | --- | --- | --- |
+  | 记分卡 `Session purchase rate (%)` | `loose_pct`，筛选 `step = purchase` | `SELECT SUM(loose_pct) FROM session_funnel WHERE step = 'purchase'` | 5.98 |
+  | 记分卡 `Bought again next week (k = 1)` | 计算字段 `k1_retention_pooled` = `SUM(retained_users) / SUM(cohort_size)`，类型 Percent，筛选 `purchase_gap_k = 1` | `SELECT SUM(retained_users) / SUM(cohort_size) FROM weekly_cohort_retention WHERE purchase_gap_k = 1` | 12.78% |
+  | 热力图 | 行 = `first_purchase_week` + `cohort_size`，列 = `purchase_gap_k`，格 = `SUM(retention_pct)`（Number，不是 Percent），排除 k = 0 | `... WHERE purchase_gap_k >= 1 GROUP BY week, cohort_size, k`，再透视 | 09-30 的 k = 1 是 20.33 |
+
+  - **排除 k = 0**：k = 0 按定义恒为 100，把色阶撑到 5.26–100，有信息的格子只占色带的 16%（(20.33 − 5.26) / (100 − 5.26)），11-11 对角线看不出来；排除后色阶 5.26–20.33。
+    副作用：11-25 cohort 只有 k = 0 一行，`WHERE` 在 `GROUP BY` 前删光它的行，整行消失（不是「-」）—— 它本来就看不到留存，可以接受。
+  - **踩过、页面上不报错的坑**：① 百分比默认 SUM（未筛选时记分卡显示 215.83 = 四步比例相加）；② 热力图的指标 Display name 是 `retention_pct`、Source field 却是 Record Count
+    （每格 1，再加 Running sum 变成 1–45）—— 核对指标先看 Source field；③ 点过表头留下交互状态，整张表变淡，左上角 ↶ 复原。
+  - 计算字段写在嵌入式数据源里（Scope: Embedded），只这份报告能用 —— 「指标定义一次」的语义层，Looker 用 LookML 的 `measure` 做（第 1 节第 4 项）。
