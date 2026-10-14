@@ -1,12 +1,15 @@
 # Purchase Propensity Targeting & Experimentation Platform
 
+[![ci](https://github.com/AndyShu828/purchase-targeting-experimentation/actions/workflows/ci.yml/badge.svg)](https://github.com/AndyShu828/purchase-targeting-experimentation/actions/workflows/ci.yml)
+
 A BNPL data-science case study on public e-commerce event data: predict who will purchase in the
 next 14 days, test whether a zero-fee instalment coupon creates incremental purchases, and choose
 how many coupons to send.
 
-> **Status:** P0–P3 complete — data quality and sessionization, a Spark feature pipeline, and a
-> calibrated LightGBM propensity model evaluated once on a held-out, pre-registered test set.
-> Next: P4 coupon experiment.
+> **Status:** P0–P5 complete — data quality and sessionization, a Spark feature pipeline, a
+> calibrated LightGBM propensity model evaluated once on a held-out, pre-registered test set, a
+> pre-registered coupon experiment, and an Airflow DAG that scores every day and checks drift.
+> Next: P6 dashboard and write-up.
 
 | Phase | Scope | Status |
 | --- | --- | --- |
@@ -14,11 +17,37 @@ how many coupons to send.
 | P1 | Data quality, 30-minute sessionization, analysis SQL, BigQuery load, pruning experiments | Done |
 | P2 | Feature pipeline: 20 features at three cutoffs, PySpark, leakage checks | Done |
 | P3 | Purchase propensity: RFM and logistic baselines, LightGBM, Platt calibration, SHAP, MLflow, batch scoring | Done (`v0.3-p3`) |
-| P4 | Pre-registered coupon experiment, power analysis, CUPED, profit curve | Next |
-| P5 | Airflow daily scoring, monitoring | Planned |
-| P6 | Dashboard and write-up | Planned |
+| P4 | Pre-registered coupon experiment, power analysis, CUPED, profit curve | Done (`v0.4-p4`) |
+| P5 | Airflow daily scoring, PSI drift monitoring, 48-day replay | Done |
+| P6 | Dashboard and write-up | Next |
 
 ## Key findings so far
+
+### The daily pipeline (P5)
+
+One Airflow 3 DAG, `daily_score`: `score` builds the cutoff's features with Spark and scores every
+user, `psi` compares the score and the top five SHAP features with the validation population
+(cutoff 2019-11-01, cuts frozen), and `alert` fails the run if any PSI reaches 0.25. Each task runs
+a script in the project's environment, so the DAG holds no logic and the scripts run without
+Airflow. The thresholds were committed before the replay.
+→ [docs/pipeline.md](docs/pipeline.md)
+
+![daily_score replayed over 48 cutoffs, 2019-10-15 to 2019-12-01, all green](docs/figures/p5_replay_grid.png)
+
+**1. No alert in 48 days; three values were logged.** No PSI reached 0.25. Three were between 0.1
+and 0.25 and went to the log: the score on 11-17 (0.1230) and 11-18 (0.1179), and
+`days_since_last_event` on 11-18 (0.1071).
+
+**2. The purchase blackout did not show up.** Windows covering 11-14 to 11-16 (cutoffs 11-15 to
+11-30) kept `n_purchases_per_day` at 0.0064 or below. On the reference it has two bins, zero
+(90.1% of users) and above zero, so its PSI only sees the share of buyers.
+
+**3. The score drifted on 11-05 while the five monitored features did not** (0.0010 → 0.0489).
+The five carry about 64% of the SHAP importance; finding the feature behind it is left open.
+
+**4. Four cutoffs ran out of Spark memory at 16 threads.** 11-24, 11-25, 11-26 and 11-29 failed in
+`score` twice each; the 8g driver's execution memory is shared by the running tasks. Scoring now
+uses 8 threads, and all four passed.
 
 ### The model (P3)
 
@@ -138,7 +167,15 @@ python scripts/compare_models.py                      # baselines, LightGBM, cal
 python scripts/register_model.py                      # LightGBM + Platt -> MLflow, alias champion
 python scripts/evaluate_test.py                       # the one test-set evaluation
 python scripts/score_users.py --cutoff 2019-12-01     # batch scoring: probability and decile per user
+python scripts/build_psi_reference.py                 # freeze the PSI cuts and shares on validation
+python scripts/daily_psi.py --cutoff 2019-12-01       # one cutoff's PSI against the reference
+python scripts/psi_alert.py --cutoff 2019-12-01       # fails if any PSI >= 0.25
 ```
+
+The DAG in `dags/daily_score.py` runs `score_users.py`, `daily_psi.py` and `psi_alert.py` for each
+cutoff; the reference is built once, outside it. Airflow 3.3 lives in
+its own virtualenv and runs with `airflow standalone`, its DAG folder pointed at `dags/`
+([docs/pipeline.md](docs/pipeline.md) §2).
 
 CI runs `ruff check`, `ruff format --check`, `sqlfluff lint sql/` (BigQuery dialect) and `pytest`
 on every pull request.
@@ -149,8 +186,9 @@ on every pull request.
 configs/         environment settings (dev / staging / prod / wsl)
 sql/analysis/    analysis and data-quality queries, BigQuery dialect
 sql/ddl/         BigQuery table definition and post-load assertions
-src/pte/         ingestion, features (PySpark), model (baselines, LightGBM, calibration, scoring)
-scripts/         query runner, BigQuery export/load, feature build, model and scoring scripts
+src/pte/         ingestion, features (PySpark), model, experiment, monitoring (PSI)
+scripts/         query runner, BigQuery export/load, feature build, model, scoring and PSI scripts
+dags/            the Airflow DAG daily_score
 tests/           unit tests
 docs/            design notes and findings
 ```
@@ -166,6 +204,8 @@ docs/            design notes and findings
 | [features.md](docs/features.md) | The three cutoffs and the 20 features |
 | [leakage.md](docs/leakage.md) | Every leakage rule, and the test-set pre-registration |
 | [model_report.md](docs/model_report.md) | P3 results: baselines, decay, SHAP, calibration, segments |
+| [experiment_report.md](docs/experiment_report.md) | P4 results: what each step found, and what is real, simulated or assumed |
+| [pipeline.md](docs/pipeline.md) | P5: the DAG, the cutoff it runs for, PSI and its thresholds, the replay |
 
 The model report is in English; the other design notes are currently in Chinese, and English
 versions will follow with the P6 write-up.
