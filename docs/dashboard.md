@@ -31,3 +31,13 @@
     两条 SQL 的 dry run 实测通过（`session_funnel` 2.21 GB、`weekly_cohort_retention` 0.24 GB），但除零是运行期错误，dry run 查不出。
   - 不用 Looker Studio 的「上传文件」入口：仓库里没有记录，表过期后无法重建。上传 Parquet 而不是 CSV，保住日期和数字列的类型。
   - Looker Studio 只连小的结果表，不对原始表写自定义查询（每次刷新都要重扫）—— 和 Looker 的 PDT（持久派生表）是同一个道理。
+
+## 4. 第 ① 页：业务漏斗与留存
+
+- [x] **决定（Andy，2026-10-14）：漏斗的头号数字 = loose 购买率 5.98%（`session_funnel` 的 `loose_pct`），回答「有多少会话最后买了」**。
+  - 不用 strict 的 3.99%：它丢掉 467,503 个购买会话（1,405,954 − 938,451，占 33.25%），其中「有浏览、无加购」占 98%（`session_funnel_purchase_decomposition.sql`）。
+    strict 回答的是「卡在哪一步」（加购 → 购买 40.45%），不是购买率。
+- [x] **决定（Andy，2026-10-14）：留存放两样 —— k = 1 的一个数 + 整张 cohort × k 热力图**。
+  - k = 1：9 个 cohort 里 8 个有这一格（k = 8 只有 1 个）；1–2 周和项目「14 天内购买」同一尺度。
+  - 热力图：单个数藏住两件事 —— 11-11 那周的对角线（日历效应，11-04 cohort 的 k = 1 是 14.67，被抬高）、11-11 cohort 的 k = 1 只有 7.17（全表最低）。
+    `weekly_cohort_retention.sql` 是长表，透视交给 Looker Studio（文件头原本就这么写）。
