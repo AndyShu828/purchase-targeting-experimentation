@@ -22,3 +22,12 @@
 
 - **BigQuery 沙盒的表 60 天过期**：`pte.events` 2026-09-22 建，**2026-11-21 过期**（`bq show` 实测）；
   数据集默认表过期也是 60 天，Dashboard 用的新表从建表起再算 60 天。⇒ 建表 / 灌数据的脚本进仓库，README 放截图兜底。
+
+## 3. 数据怎么进 Looker Studio
+
+- [x] **决定（Andy，2026-10-14）：三页都走同一条路 —— 本地 DuckDB 跑全量（10–11 月）→ 结果表存 Parquet → `bq load` 脚本上传到 BigQuery → Looker Studio 连 BigQuery**。
+  - 理由：第 ② 页的 PSI 和第 ③ 页的利润曲线本来就只在本地，上传脚本无论如何要写；第 ① 页也走它，数字和文档（全量）一致。
+  - 不选「在 BigQuery 上跑 SQL 建结果表」：沙盒只放得下 10 月（10 GB 上限，10 月占 5.6 GB），Dashboard 的数字会和 README、文档对不上。
+    两条 SQL 的 dry run 实测通过（`session_funnel` 2.21 GB、`weekly_cohort_retention` 0.24 GB），但除零是运行期错误，dry run 查不出。
+  - 不用 Looker Studio 的「上传文件」入口：仓库里没有记录，表过期后无法重建。上传 Parquet 而不是 CSV，保住日期和数字列的类型。
+  - Looker Studio 只连小的结果表，不对原始表写自定义查询（每次刷新都要重扫）—— 和 Looker 的 PDT（持久派生表）是同一个道理。
