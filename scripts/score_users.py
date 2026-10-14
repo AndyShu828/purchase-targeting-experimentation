@@ -42,7 +42,11 @@ def build_features(cutoff: date, out: Path, env: str | None) -> None:
     from pte.features.build import WINDOW_DAYS, build_feature_table
     from pte.spark import build_session, read_events
 
-    spark = build_session("pte-score-users")
+    # 8 threads, not local[*]'s 16: in the daily_score replay (2026-10-13) cutoffs 11-24, 11-25,
+    # 11-26 and 11-29 ran out of Spark memory twice each (UNABLE_TO_ACQUIRE_MEMORY), since the
+    # 8g driver's execution pool is split across the running tasks; at 8 threads each task
+    # gets twice as much, and 11-24 scored in 110 s.
+    spark = build_session("pte-score-users", master="local[8]")
     spark.sparkContext.setLogLevel("WARN")
     try:
         events = read_events(spark, full=True, env=env)
