@@ -1,8 +1,10 @@
 """Who gets the coupon: the step 9 strategy comparison, from Andy's P4 notebook (2026-10-10).
 
 Decided 2026-10-10 (experiment_design.md section 7), before any strategy was compared: the
-coupon (0% installment fee) costs only when used, so every coupon holder who buys costs the
-waived fee on all they spend, and the incremental GMV earns the margin m. Per user in a decile:
+coupon costs only when used, so every coupon holder who buys costs f on all they spend, and the
+incremental GMV earns the margin m. The coupon is an interest-free 6-instalment plan at the
+partner merchant and f the platform's cost of carrying it (revised 2026-10-14; the formula and
+every number are unchanged). Per user in a decile:
 
     profit / m = gmv_lift - k * gmv_with_coupon,  k = f / m
     gmv_with_coupon = gmv_no_coupon + gmv_lift
