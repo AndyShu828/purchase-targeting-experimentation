@@ -41,3 +41,9 @@
   - k = 1：9 个 cohort 里 8 个有这一格（k = 8 只有 1 个）；1–2 周和项目「14 天内购买」同一尺度。
   - 热力图：单个数藏住两件事 —— 11-11 那周的对角线（日历效应，11-04 cohort 的 k = 1 是 14.67，被抬高）、11-11 cohort 的 k = 1 只有 7.17（全表最低）。
     `weekly_cohort_retention.sql` 是长表，透视交给 Looker Studio（文件头原本就这么写）。
+- [x] **决定（Andy，2026-10-14）：k = 1 的数字 = 合并算 12.78%**（8 个 cohort 的 k = 1 回购人数 ÷ cohort 人数 = 82,548 / 645,800），理由：各 cohort 人数不同。
+  - 不用简单平均 13.29%（每个 cohort 一票，146,154 人的 11-11 和 51,670 人的 11-25 同权）；不用最新 cohort 11-18 的 11.36%（被 11-14 起 38.4 小时的埋点故障抬高）。
+  - 副作用：人群结构会动它 —— 11-11 cohort 人多、k = 1 只有 7.17，把合并数往下拉；所以旁边放热力图。
+  - k 是日历周的差，不是天数：k = 1 的实际间隔是 1–13 天，周末首购的人窗口贴着首购（回购最密的几天），定义上偏高。
+    11-11 cohort 76.5% 是周六、周日首购，定义在帮他们，k = 1 仍最低（`weekly_cohort_first_purchase_day.sql`：周一到周四 8.16–9.59，周六 7.12、周日 6.43）。
+    热力图加注：「k = calendar weeks since the first-purchase week (Mon–Sun); k = 1 means bought again the following week, 1–13 days later.」
