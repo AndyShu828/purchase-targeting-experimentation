@@ -120,3 +120,33 @@ Airflow 有两种按 cron 排运行的模式。2026-10-12 在 3.3.2 上实测（
       空箱会出现：`np.quantile` 在整数之间插值，`[0,0,0,0,0,0,1,1,2,5]` 的十分位切点去重后是 0, 0.4, 1, 1.2, 2.3，有两箱没人。
       现在的 Valid 参照没有空箱，notebook 的结果不受影响；`src/pte/monitoring/psi.py` 的 `check_floor` 只取 e > 0。
   - 不托底时 numpy 只给 `RuntimeWarning`，PSI = inf；e = [0.5, 0.5]、a = [1.0, 0.0] 托底后的 PSI：1e-4 → 4.6043、1e-6 → 6.9077。
+
+## 6. 回放结果（2026-10-13 → 10-14）
+
+push（13:57 UTC，含阈值 commit `c2175a4`）之后取消暂停，`catchup` 排出 cutoff 10-15 … 12-01 共 48 次，一次跑一个。
+
+- **最终 48 次全部 success**，每天一份 `monitoring/psi/<cutoff>.parquet`。
+- **`alert` 没有一次变红**：没有任何变量的 PSI ≥ 0.25。
+- **0.1–0.25 写日志的 3 格**（对应 `alert` 日志里各有一行）：11-17 的 `p` 0.1230；11-18 的 `p` 0.1179、`days_since_last_event` 0.1071。
+- 各变量 48 天里的最大值：`p` 0.1230、`n_purchases_per_day` 0.0064、`avg_session_seconds` 0.0470、`days_since_last_event` 0.1071、`n_categories` 0.0522、`active_days` 0.0404。
+
+### 4 天 `score` 内存不足
+
+- 第一次回放 cutoff 11-24、11-25、11-26、11-29 的 `score` 失败（`psi`、`alert` 为 upstream_failed），
+  错误 `SparkOutOfMemoryError: [UNABLE_TO_ACQUIRE_MEMORY] Unable to acquire 16384 bytes of memory, got 0`；Clear 重跑仍然失败，不是偶发。
+- 原因：本地模式下 8g driver 的计算内存约 `(8192 - 300) * 0.6 ≈ 4,700 MB`（Spark 默认值，按公式算），由同时运行的 task 分；
+  `local[*]` 是 16 个，每个最多约 290 MB。这是 JVM 里的池子，Linux 上空闲内存再多也用不上。11 月下旬窗口事件最多。数据倾斜没有排除。
+- 手动以 `local[8]` 跑 11-24：成功，110 秒，2,389,309 人。
+- [x] **决定（Andy，2026-10-14）：只在 `score_users.py` 里用 `local[8]`**（commit `efb7b5d`），不改 `build_session` 的默认值（会拖慢所有脚本），
+  不把 driver 内存加到 10g（每个 task 只多 28%，WSL 一共 15 GB）。之后 4 天 Clear 重跑全部成功，`score` 每次 1 分 49 秒到 2 分 00 秒。
+- 没定：要不要给 task 加 `retries=1`。这次的失败不是偶发，自动重试救不回来。
+
+### 读表
+
+- **猜测「11-14 到 11-16 购买记录缺失会让 `n_purchases_per_day` 的 PSI 跳起来」：没有跳起来。**
+  特征窗口包含这几天的 cutoff 是 11-15 到 11-30（窗口 = cutoff 前 14 天，`event_date < cutoff`），这 16 行在 0.0010–0.0064，
+  10-15 到 11-14 最高 0.0019：高了一些，离 0.1 很远。可能的原因（未验证）：① P2 的分母用有效天数，扣掉了与断档重叠的时长；
+  ② 这一列在参照上只有 2 箱（0 / 大于 0），PSI 只看得到买过的人占多少，看不到买了多少。
+- **11-05 `p` 从 0.0010 跳到 0.0489，同一行 5 个特征几乎没动**（`days_since_last_event` 0.0140 → 0.0294）：分数漂了，但不是这 5 个特征引起的。
+  前 5 个特征约占 SHAP 的 64%，其余 15 个不在监控里。
+  - [ ] **待查（Andy，2026-10-14 决定以后查）**：用全部 20 个模型特征建参照，比 11-04 和 11-05 的 PSI，定位是哪一列。
