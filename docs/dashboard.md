@@ -16,6 +16,8 @@
      依赖 Paidy 业务研究：券的设定 2026-10-14 已按 Paidy 的实际产品更正（`experiment_design.md` 第 7 节）。
   6. **`docs/event_mapping.md`**（可选，最先砍）：换成 BNPL App 的事件时，特征和标签怎么对应。理由：JD「clickstream data, app activity data」。
 - 决定不做：`docs/` 全量英文化。计划原文只要求 README 英文为主。
+- 决定不做（Andy，2026-10-14）：Tableau 版 Dashboard。JD 的「a BI tool like Looker, Tableau」紧接着说 Looker 是主要工具；概念与 Looker Studio 相同，
+  加的主要是界面操作。Tableau Public 只读抽取文件 / Google Sheets，官方 FAQ 的连接器里没有 BigQuery，要多搭一条导出路径。以后投 Tableau / Power BI 多的公司时再拿第 ① 页做一版（约 2–3h）。
 - 仓库之外（计划同周）：Paidy 业务研究的其余部分（日本 BNPL 市场）、自我介绍中英日、5 分钟项目讲解、至少两轮模拟面试、简历条目。
 
 ## 2. 约束
