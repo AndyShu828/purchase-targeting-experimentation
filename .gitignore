@@ -40,3 +40,4 @@ HANDOFF.md
 # Local backup tooling, references personal paths
 REBUILD.md
 make_backup.py
+sync_to_nas.py
