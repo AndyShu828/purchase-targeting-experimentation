@@ -4,11 +4,14 @@ Decisions in docs/pipeline.md (P5). One run per cutoff, 2019-10-15 to 2019-12-01
 data_interval_end, the morning the run is for in both scheduling modes.
 """
 
+from pathlib import Path
+
 import pendulum
 from airflow.providers.standard.operators.bash import BashOperator
 from airflow.sdk import DAG
 
-REPO = "/mnt/c/Users/AndyS/purchase-targeting-experimentation"
+# The repo root is the parent of dags/, so the DAG runs from any checkout (WSL or n100b).
+REPO = str(Path(__file__).resolve().parents[1])
 PYTHON = "PTE_ENV=wsl ~/.venvs/pte/bin/python"
 CUTOFF = "{{ data_interval_end | ds }}"
 
