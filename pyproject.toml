@@ -5,7 +5,8 @@ description = "Purchase propensity targeting & experimentation platform on e-com
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "duckdb>=1.5",
+    # <2: 2.0 drops fetchone() on relations, used in src/pte/ingest/convert.py
+    "duckdb>=1.5,<2",
     # eval_X / eval_y, which replace the deprecated eval_set in fit
     "lightgbm>=4.7",
     # the P3 calibration curves (scripts/evaluate_test.py)
@@ -13,7 +14,8 @@ dependencies = [
     # tracking the P3 tuning runs (src/pte/model/tracking.py)
     "mlflow>=3.0",
     "numpy>=2.0",
-    "pandas>=3.0",
+    # <3.1: pyspark 4.2 imports DateOffset from pandas.tseries.frequencies, removed in 3.1
+    "pandas>=3.0,<3.1",
     "pyarrow>=19",
     "pyyaml>=6.0",
     "scikit-learn>=1.6",
